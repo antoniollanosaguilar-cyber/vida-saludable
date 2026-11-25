@@ -21,6 +21,7 @@ import type {
   UserProfile,
 } from '../types/models';
 import { MacroRing } from '../components/MacroRing';
+import { SamsaraMark } from '../components/SamsaraBrand';
 import { SwipeableRow } from '../components/SwipeableRow';
 import { EditMealBottomSheet } from '../components/EditMealBottomSheet';
 import {
@@ -319,7 +320,7 @@ export function TodayPage({
       <header className="sticky top-0 z-20 bg-surface border-b border-outline-variant px-page-margin py-gutter-sm">
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-gutter-xs">
           <div className="flex items-center">
-            {selectedDate !== todayKey && (
+            {selectedDate !== todayKey ? (
               <button
                 type="button"
                 onClick={() => onChangeDate(todayKey)}
@@ -327,6 +328,13 @@ export function TodayPage({
               >
                 Ir a hoy
               </button>
+            ) : (
+              <div
+                className="inline-flex items-center gap-1.5 pl-0.5 select-none"
+                aria-label="Samsara"
+              >
+                <SamsaraMark size={26} />
+              </div>
             )}
           </div>
 

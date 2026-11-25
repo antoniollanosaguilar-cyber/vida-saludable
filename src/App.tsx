@@ -17,6 +17,7 @@ import type {
 import { BottomNav, type AppTab } from './components/BottomNav';
 import { ToastHost, type ToastMessage } from './components/ToastHost';
 import { QuickWeightModal } from './components/QuickWeightModal';
+import { SamsaraLogo } from './components/SamsaraBrand';
 import { TodayPage } from './pages/TodayPage';
 import { LogPage } from './pages/LogPage';
 import { MenusPage } from './pages/MenusPage';
@@ -415,11 +416,9 @@ export function App() {
   if (!ready) {
     return (
       <div className="min-h-screen max-w-[480px] mx-auto bg-surface flex items-center justify-center">
-        <div className="flex flex-col items-center gap-gutter-sm">
-          <div className="w-8 h-8 rounded-full border-2 border-track border-t-primary animate-spin" />
-          <span className="font-label text-label-md text-on-surface-variant">
-            Cargando Samsara...
-          </span>
+        <div className="flex flex-col items-center gap-gutter-md">
+          <SamsaraLogo size="lg" />
+          <div className="w-6 h-6 rounded-full border-2 border-track border-t-primary animate-spin" />
         </div>
       </div>
     );

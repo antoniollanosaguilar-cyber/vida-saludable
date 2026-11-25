@@ -9,6 +9,7 @@ import type {
   UserProfile,
 } from '../types/models';
 import { ConfirmModal } from '../components/ConfirmModal';
+import { SamsaraLogo } from '../components/SamsaraBrand';
 import { formatKcal, getTodayDateKey } from '../utils/formatters';
 
 interface SettingsPageProps {
@@ -681,6 +682,14 @@ export function SettingsPage({
             </p>
           </article>
         </section>
+
+        {/* Identidad de marca */}
+        <footer className="pt-gutter-sm pb-gutter-xs flex flex-col items-center gap-gutter-xs opacity-85">
+          <SamsaraLogo size="sm" />
+          <span className="font-mono text-[11px] text-on-surface-variant">
+            PWA 100% offline · Datos locales
+          </span>
+        </footer>
       </main>
 
       <ConfirmModal
