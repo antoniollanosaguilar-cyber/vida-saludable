@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Trash2, X } from 'lucide-react';
+import { Copy, Plus, Trash2, X } from 'lucide-react';
 import type {
   BaseUnit,
   ComboIngredient,
@@ -23,6 +23,7 @@ import {
 interface CreateFoodOrComboSheetProps {
   open: boolean;
   foods: FoodItem[];
+  initialMode?: 'food' | 'combo';
   editingFood?: FoodItem | null;
   editingCombo?: MealCombo | null;
   prefillFoodDraft?: ScannedProductDraft | null;
@@ -31,6 +32,7 @@ interface CreateFoodOrComboSheetProps {
   onDeleteFood?: (food: FoodItem) => Promise<void>;
   onSaveCombo: (combo: Omit<MealCombo, 'id'>, existingId?: number) => Promise<void>;
   onDeleteCombo?: (combo: MealCombo) => Promise<void>;
+  onDuplicateCombo?: (combo: MealCombo) => Promise<void>;
 }
 
 const CATEGORY_OPTIONS: { value: FoodCategory; label: string }[] = [
@@ -45,6 +47,7 @@ const CATEGORY_OPTIONS: { value: FoodCategory; label: string }[] = [
 export function CreateFoodOrComboSheet({
   open,
   foods,
+  initialMode = 'food',
   editingFood = null,
   editingCombo = null,
   prefillFoodDraft = null,
@@ -53,6 +56,7 @@ export function CreateFoodOrComboSheet({
   onDeleteFood,
   onSaveCombo,
   onDeleteCombo,
+  onDuplicateCombo,
 }: CreateFoodOrComboSheetProps) {
   const [mode, setMode] = useState<'food' | 'combo'>('food');
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
@@ -117,7 +121,7 @@ export function CreateFoodOrComboSheet({
       return;
     }
 
-    setMode('food');
+    setMode(prefillFoodDraft ? 'food' : initialMode);
     setFoodName(prefillFoodDraft?.nombre ?? '');
     setCategory('otro');
     setUnit('g');
@@ -147,7 +151,7 @@ export function CreateFoodOrComboSheet({
       setSelectedFoodId(String(foods[0].id));
       setIngredientQty(foods[0].unidadBase === 'unidad' ? '1' : '100');
     }
-  }, [open, foods, editingFood, editingCombo, prefillFoodDraft]);
+  }, [open, foods, initialMode, editingFood, editingCombo, prefillFoodDraft]);
 
   const selectedFood = useMemo(
     () => foods.find((f) => String(f.id) === selectedFoodId) ?? foods[0],
@@ -738,21 +742,35 @@ export function CreateFoodOrComboSheet({
                 </p>
               )}
 
-              <div className={`grid gap-gutter-sm ${editingCombo && onDeleteCombo ? 'grid-cols-[auto_1fr]' : 'grid-cols-1'}`}>
+              <div className="flex items-center gap-gutter-sm">
                 {editingCombo && onDeleteCombo && (
                   <button
                     type="button"
                     onClick={() => setConfirmDeleteOpen(true)}
                     aria-label="Eliminar combo"
-                    className="inline-flex items-center justify-center min-h-[48px] px-gutter-md rounded-md bg-error-container border border-error/40 text-error hover:bg-error hover:text-on-error transition-colors"
+                    className="shrink-0 inline-flex items-center justify-center min-h-[48px] px-gutter-md rounded-md bg-error-container border border-error/40 text-error hover:bg-error hover:text-on-error transition-colors"
                   >
                     <Trash2 className="w-5 h-5" aria-hidden="true" />
+                  </button>
+                )}
+                {editingCombo && onDuplicateCombo && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await onDuplicateCombo(editingCombo);
+                      onClose();
+                    }}
+                    aria-label="Duplicar menú"
+                    title="Duplicar menú"
+                    className="shrink-0 inline-flex items-center justify-center min-h-[48px] px-gutter-md rounded-md bg-surface-container-high border border-outline text-on-surface hover:border-primary hover:text-primary transition-colors"
+                  >
+                    <Copy className="w-5 h-5" aria-hidden="true" />
                   </button>
                 )}
                 <button
                   type="submit"
                   disabled={saving}
-                  className="w-full min-h-[48px] px-gutter-lg rounded-md bg-primary text-on-primary font-label text-label-lg transition-colors hover:bg-on-primary-container disabled:opacity-40"
+                  className="flex-1 min-h-[48px] px-gutter-lg rounded-md bg-primary text-on-primary font-label text-label-lg transition-colors hover:bg-on-primary-container disabled:opacity-40"
                 >
                   {saving
                     ? 'Guardando...'

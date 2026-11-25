@@ -5,11 +5,13 @@ import { DEFAULT_PROFILE, ensureSeedData } from './db/seedData';
 import { calculateDailyTargets } from './engine/nutritionEngine';
 import type {
   CookState,
+  DayMenuTemplate,
   FoodItem,
   MealCombo,
   MealLogEntry,
   MealSlot,
   UserProfile,
+  WeeklyPlanAssignment,
   WeightEntry,
 } from './types/models';
 import { BottomNav, type AppTab } from './components/BottomNav';
@@ -17,6 +19,7 @@ import { ToastHost, type ToastMessage } from './components/ToastHost';
 import { QuickWeightModal } from './components/QuickWeightModal';
 import { TodayPage } from './pages/TodayPage';
 import { LogPage } from './pages/LogPage';
+import { MenusPage } from './pages/MenusPage';
 import { ProgressPage } from './pages/ProgressPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { getTodayDateKey, MEAL_SLOT_LABELS } from './utils/formatters';
@@ -193,16 +196,27 @@ export function App() {
   );
 
   const handleLogCombo = useCallback(
-    async (combo: MealCombo, slot: MealSlot) => {
+    async (
+      combo: MealCombo,
+      slot: MealSlot,
+      override?: {
+        scaleLabel?: string;
+        kcal?: number;
+        proteinaG?: number;
+        carbohidratosG?: number;
+        grasasG?: number;
+      },
+    ) => {
       const newEntry: Omit<MealLogEntry, 'id'> = {
         fecha: selectedDate,
         slot,
         nombre: combo.nombre,
-        cantidadTexto: `Combo (${combo.ingredientes.length} ing.)`,
-        kcal: combo.totalKcal,
-        proteinaG: combo.totalProteinaG,
-        carbohidratosG: combo.totalCarbsG,
-        grasasG: combo.totalGrasasG,
+        cantidadTexto:
+          override?.scaleLabel ?? `Menú (${combo.ingredientes.length} ing.)`,
+        kcal: override?.kcal ?? combo.totalKcal,
+        proteinaG: override?.proteinaG ?? combo.totalProteinaG,
+        carbohidratosG: override?.carbohidratosG ?? combo.totalCarbsG,
+        grasasG: override?.grasasG ?? combo.totalGrasasG,
         createdAt: Date.now(),
       };
       const insertedId = await db.mealLogs.add(newEntry);
@@ -214,6 +228,70 @@ export function App() {
           if (insertedId !== undefined) {
             void db.mealLogs.delete(insertedId);
           }
+        },
+      });
+    },
+    [selectedDate, showToast],
+  );
+
+  const handleApplyDayTemplate = useCallback(
+    async (template: DayMenuTemplate) => {
+      if (template.entries.length === 0) return;
+      const now = Date.now();
+      const rows: Omit<MealLogEntry, 'id'>[] = template.entries.map((e, idx) => ({
+        fecha: selectedDate,
+        slot: e.slot,
+        nombre: e.nombre,
+        cantidadTexto: e.cantidadTexto,
+        kcal: e.kcal,
+        proteinaG: e.proteinaG,
+        carbohidratosG: e.carbohidratosG,
+        grasasG: e.grasasG,
+        createdAt: now + idx,
+        foodId: e.foodId,
+        cantidadNum: e.cantidadNum,
+        unidad: e.unidad,
+        cookState: e.cookState,
+      }));
+      const insertedIds = (await db.mealLogs.bulkAdd(rows, {
+        allKeys: true,
+      })) as number[];
+
+      showToast(`Plantilla "${template.nombre}" cargada (${rows.length} comidas)`, {
+        tone: 'success',
+        actionLabel: 'Deshacer',
+        onAction: () => {
+          void db.mealLogs.bulkDelete(insertedIds);
+        },
+      });
+    },
+    [selectedDate, showToast],
+  );
+
+  const handleApplyWeeklyDayToDate = useCallback(
+    async (assignments: WeeklyPlanAssignment[], dayLabel: string) => {
+      if (assignments.length === 0) return;
+      const now = Date.now();
+      const rows: Omit<MealLogEntry, 'id'>[] = assignments.map((a, idx) => ({
+        fecha: selectedDate,
+        slot: a.slot,
+        nombre: a.nombre,
+        cantidadTexto: `Plan ${dayLabel} (${a.ingredientes.length} ing.)`,
+        kcal: a.kcal,
+        proteinaG: a.proteinaG,
+        carbohidratosG: a.carbohidratosG,
+        grasasG: a.grasasG,
+        createdAt: now + idx,
+      }));
+      const insertedIds = (await db.mealLogs.bulkAdd(rows, {
+        allKeys: true,
+      })) as number[];
+
+      showToast(`Plan del ${dayLabel} cargado (${rows.length} comidas)`, {
+        tone: 'success',
+        actionLabel: 'Deshacer',
+        onAction: () => {
+          void db.mealLogs.bulkDelete(insertedIds);
         },
       });
     },
@@ -365,6 +443,7 @@ export function App() {
           onUpdateMeal={handleUpdateMeal}
           onDeleteMeal={handleDeleteMeal}
           onUpdateDailyMetric={handleUpdateDailyMetric}
+          onNotify={(text, tone) => showToast(text, { tone })}
         />
       )}
 
@@ -374,9 +453,22 @@ export function App() {
           todayKey={todayKey}
           preselectedSlot={preselectedSlot}
           onClearPreselectedSlot={() => setPreselectedSlot(null)}
+          onOpenMenusTab={() => setActiveTab('menus')}
           onLogCombo={handleLogCombo}
           onLogFood={handleLogFood}
           onQuickAdd={handleQuickAdd}
+          onNotify={(text, tone) => showToast(text, { tone })}
+        />
+      )}
+
+      {activeTab === 'menus' && (
+        <MenusPage
+          selectedDate={selectedDate}
+          todayKey={todayKey}
+          targets={targets}
+          onLogCombo={handleLogCombo}
+          onApplyDayTemplate={handleApplyDayTemplate}
+          onApplyWeeklyDayToDate={handleApplyWeeklyDayToDate}
           onNotify={(text, tone) => showToast(text, { tone })}
         />
       )}

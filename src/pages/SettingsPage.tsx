@@ -116,18 +116,30 @@ export function SettingsPage({
   }
 
   async function handleExportJson() {
-    const [profileRows, foods, combos, mealLogs, weightLogs, dailyMetrics] =
-      await Promise.all([
-        db.profile.toArray(),
-        db.foods.toArray(),
-        db.combos.toArray(),
-        db.mealLogs.toArray(),
-        db.weightLogs.toArray(),
-        db.dailyMetrics.toArray(),
-      ]);
+    const [
+      profileRows,
+      foods,
+      combos,
+      mealLogs,
+      weightLogs,
+      dailyMetrics,
+      dayTemplates,
+      weeklyPlan,
+      shoppingChecks,
+    ] = await Promise.all([
+      db.profile.toArray(),
+      db.foods.toArray(),
+      db.combos.toArray(),
+      db.mealLogs.toArray(),
+      db.weightLogs.toArray(),
+      db.dailyMetrics.toArray(),
+      db.dayTemplates.toArray(),
+      db.weeklyPlan.toArray(),
+      db.shoppingChecks.toArray(),
+    ]);
 
     const payload: BackupData = {
-      version: 2,
+      version: 3,
       exportedAt: new Date().toISOString(),
       app: 'Samsara',
       profile: profileRows,
@@ -136,6 +148,9 @@ export function SettingsPage({
       mealLogs,
       weightLogs,
       dailyMetrics,
+      dayTemplates,
+      weeklyPlan,
+      shoppingChecks,
     };
 
     const blob = new Blob([JSON.stringify(payload, null, 2)], {
@@ -179,7 +194,17 @@ export function SettingsPage({
     try {
       await db.transaction(
         'rw',
-        [db.profile, db.foods, db.combos, db.mealLogs, db.weightLogs, db.dailyMetrics],
+        [
+          db.profile,
+          db.foods,
+          db.combos,
+          db.mealLogs,
+          db.weightLogs,
+          db.dailyMetrics,
+          db.dayTemplates,
+          db.weeklyPlan,
+          db.shoppingChecks,
+        ],
         async () => {
           await Promise.all([
             db.profile.clear(),
@@ -188,6 +213,9 @@ export function SettingsPage({
             db.mealLogs.clear(),
             db.weightLogs.clear(),
             db.dailyMetrics.clear(),
+            db.dayTemplates.clear(),
+            db.weeklyPlan.clear(),
+            db.shoppingChecks.clear(),
           ]);
 
           if (backup.profile.length > 0) {
@@ -209,6 +237,15 @@ export function SettingsPage({
           }
           if (Array.isArray(backup.dailyMetrics) && backup.dailyMetrics.length > 0) {
             await db.dailyMetrics.bulkPut(backup.dailyMetrics);
+          }
+          if (Array.isArray(backup.dayTemplates) && backup.dayTemplates.length > 0) {
+            await db.dayTemplates.bulkPut(backup.dayTemplates);
+          }
+          if (Array.isArray(backup.weeklyPlan) && backup.weeklyPlan.length > 0) {
+            await db.weeklyPlan.bulkPut(backup.weeklyPlan);
+          }
+          if (Array.isArray(backup.shoppingChecks) && backup.shoppingChecks.length > 0) {
+            await db.shoppingChecks.bulkPut(backup.shoppingChecks);
           }
         },
       );

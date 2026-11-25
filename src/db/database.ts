@@ -1,10 +1,14 @@
 import Dexie, { type EntityTable } from 'dexie';
 import type {
   DailyMetricEntry,
+  DayMenuTemplate,
   FoodItem,
   MealCombo,
   MealLogEntry,
+  ShoppingCheckItem,
   UserProfile,
+  WeekdayIndex,
+  WeeklyPlanDay,
   WeightEntry,
 } from '../types/models';
 
@@ -15,6 +19,9 @@ export class MacroCutDatabase extends Dexie {
   mealLogs!: EntityTable<MealLogEntry, 'id'>;
   weightLogs!: EntityTable<WeightEntry, 'fecha'>;
   dailyMetrics!: EntityTable<DailyMetricEntry, 'fecha'>;
+  dayTemplates!: EntityTable<DayMenuTemplate, 'id'>;
+  weeklyPlan!: EntityTable<WeeklyPlanDay, 'dayOfWeek'>;
+  shoppingChecks!: EntityTable<ShoppingCheckItem, 'key'>;
 
   constructor() {
     super('MacroCutDB');
@@ -33,7 +40,19 @@ export class MacroCutDatabase extends Dexie {
       weightLogs: 'fecha',
       dailyMetrics: 'fecha',
     });
+    this.version(3).stores({
+      profile: 'id',
+      foods: '++id, nombre, categoria, esFavorito, codigoBarras',
+      combos: '++id, nombre, slotSugerido',
+      mealLogs: '++id, fecha, slot, foodId',
+      weightLogs: 'fecha',
+      dailyMetrics: 'fecha',
+      dayTemplates: '++id, nombre',
+      weeklyPlan: 'dayOfWeek',
+      shoppingChecks: 'key',
+    });
   }
 }
 
+export type { WeekdayIndex };
 export const db = new MacroCutDatabase();

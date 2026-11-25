@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import {
+  BookmarkPlus,
   ChevronLeft,
   ChevronRight,
   Copy,
@@ -13,6 +14,7 @@ import {
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/database';
 import type {
+  ComboIngredient,
   DailyTargets,
   MealLogEntry,
   MealSlot,
@@ -21,6 +23,10 @@ import type {
 import { MacroRing } from '../components/MacroRing';
 import { SwipeableRow } from '../components/SwipeableRow';
 import { EditMealBottomSheet } from '../components/EditMealBottomSheet';
+import {
+  SaveTemplateModal,
+  type SaveTemplateMode,
+} from '../components/SaveTemplateModal';
 import {
   addDays,
   formatHeaderDate,
@@ -42,6 +48,7 @@ interface TodayPageProps {
   onUpdateMeal: (updated: MealLogEntry) => Promise<void>;
   onDeleteMeal: (entry: MealLogEntry) => Promise<void>;
   onUpdateDailyMetric: (fecha: string, patch: { aguaMl?: number; pasos?: number }) => Promise<void>;
+  onNotify: (text: string, tone?: 'success' | 'warning' | 'error' | 'info') => void;
 }
 
 export function TodayPage({
@@ -56,8 +63,10 @@ export function TodayPage({
   onUpdateMeal,
   onDeleteMeal,
   onUpdateDailyMetric,
+  onNotify,
 }: TodayPageProps) {
   const [editingEntry, setEditingEntry] = useState<MealLogEntry | null>(null);
+  const [saveModalMode, setSaveModalMode] = useState<SaveTemplateMode | null>(null);
   const [editingSteps, setEditingSteps] = useState(false);
   const [stepsDraft, setStepsDraft] = useState('');
 
@@ -72,6 +81,7 @@ export function TodayPage({
     [prevDateKey],
   );
   const allFoods = useLiveQuery(() => db.foods.toArray(), []) ?? [];
+  const allCombos = useLiveQuery(() => db.combos.toArray(), []) ?? [];
   const dailyMetric = useLiveQuery(
     () => db.dailyMetrics.get(selectedDate),
     [selectedDate],
@@ -196,6 +206,108 @@ export function TodayPage({
 
   const waterPct = Math.min(100, metaAguaMl > 0 ? (aguaMl / metaAguaMl) * 100 : 0);
   const stepsPct = Math.min(100, metaPasos > 0 ? (pasos / metaPasos) * 100 : 0);
+
+  function extractIngredientsFromEntries(entries: MealLogEntry[]): ComboIngredient[] {
+    const comboByName = new Map(allCombos.map((c) => [c.nombre, c]));
+    const foodById = new Map(allFoods.map((f) => [f.id, f]));
+    const result: ComboIngredient[] = [];
+
+    for (const entry of entries) {
+      const matchedCombo = comboByName.get(entry.nombre);
+      if (matchedCombo && matchedCombo.ingredientes.length > 0) {
+        result.push(...matchedCombo.ingredientes.map((i) => ({ ...i })));
+      } else {
+        const matchedFood = entry.foodId !== undefined ? foodById.get(entry.foodId) : undefined;
+        result.push({
+          foodId: matchedFood?.id ?? entry.foodId,
+          nombre: entry.nombre,
+          cantidad: entry.cantidadNum ?? matchedFood?.porcionReferencia ?? 1,
+          unidad: entry.unidad ?? matchedFood?.unidadBase ?? 'unidad',
+          kcal: entry.kcal,
+          proteinaG: entry.proteinaG,
+          carbohidratosG: entry.carbohidratosG,
+          grasasG: entry.grasasG,
+        });
+      }
+    }
+    return result;
+  }
+
+  function openSaveSlotAsMenu(slot: MealSlot, slotItems: MealLogEntry[]) {
+    if (slotItems.length === 0) return;
+    const slotKcal = Math.round(slotItems.reduce((s, e) => s + e.kcal, 0));
+    const slotProt = Number(slotItems.reduce((s, e) => s + e.proteinaG, 0).toFixed(1));
+    const slotCarbs = Number(slotItems.reduce((s, e) => s + e.carbohidratosG, 0).toFixed(1));
+    const slotFats = Number(slotItems.reduce((s, e) => s + e.grasasG, 0).toFixed(1));
+    const defaultName =
+      slotItems.length === 1
+        ? `${MEAL_SLOT_LABELS[slot]} · ${slotItems[0].nombre}`
+        : `${MEAL_SLOT_LABELS[slot]} · ${slotItems.slice(0, 2).map((i) => i.nombre).join(' + ')}`;
+
+    setSaveModalMode({
+      kind: 'slot-to-combo',
+      slot,
+      defaultName,
+      summaryText: slotItems.map((i) => `${i.nombre} (${i.cantidadTexto})`).join(' · '),
+      totalKcal: slotKcal,
+      totalProtG: slotProt,
+      totalCarbsG: slotCarbs,
+      totalFatsG: slotFats,
+      onSubmit: async (nombre) => {
+        const ingredientes = extractIngredientsFromEntries(slotItems);
+        await db.combos.add({
+          nombre,
+          slotSugerido: slot,
+          ingredientes,
+          totalKcal: slotKcal,
+          totalProteinaG: slotProt,
+          totalCarbsG: slotCarbs,
+          totalGrasasG: slotFats,
+        });
+        onNotify(`Menú "${nombre}" guardado en Menús y Registrar.`);
+      },
+    });
+  }
+
+  function openSaveDayAsTemplate() {
+    if (logs.length === 0) return;
+    setSaveModalMode({
+      kind: 'day-to-template',
+      defaultName: `Día ${formatHeaderDate(selectedDate, todayKey)}`,
+      entriesCount: logs.length,
+      totalKcal: Math.round(totals.kcal),
+      totalProtG: Number(totals.proteinaG.toFixed(1)),
+      totalCarbsG: Number(totals.carbohidratosG.toFixed(1)),
+      totalFatsG: Number(totals.grasasG.toFixed(1)),
+      onSubmit: async (nombre, descripcion) => {
+        const entries = logs.map((l) => ({
+          slot: l.slot,
+          nombre: l.nombre,
+          cantidadTexto: l.cantidadTexto,
+          kcal: l.kcal,
+          proteinaG: l.proteinaG,
+          carbohidratosG: l.carbohidratosG,
+          grasasG: l.grasasG,
+          foodId: l.foodId,
+          cantidadNum: l.cantidadNum,
+          unidad: l.unidad,
+          cookState: l.cookState,
+          ingredientes: extractIngredientsFromEntries([l]),
+        }));
+        await db.dayTemplates.add({
+          nombre,
+          descripcion: descripcion || undefined,
+          entries,
+          totalKcal: Math.round(totals.kcal),
+          totalProteinaG: Number(totals.proteinaG.toFixed(1)),
+          totalCarbsG: Number(totals.carbohidratosG.toFixed(1)),
+          totalGrasasG: Number(totals.grasasG.toFixed(1)),
+          createdAt: Date.now(),
+        });
+        onNotify(`Día "${nombre}" guardado como plantilla.`);
+      },
+    });
+  }
 
   return (
     <div
@@ -492,18 +604,30 @@ export function TodayPage({
               </span>
             </div>
 
-            {prevLogs.length > 0 && (
-              <button
-                type="button"
-                onClick={() =>
-                  void onCopyMealsFromYesterday(prevLogs, 'todas las comidas de ayer')
-                }
-                className="inline-flex items-center gap-1.5 min-h-[38px] px-gutter-md rounded-full bg-surface-container border border-outline text-on-surface-variant font-label text-label-sm hover:border-primary hover:text-primary transition-colors active:scale-95"
-              >
-                <Copy className="w-3.5 h-3.5" aria-hidden="true" />
-                <span>Copiar ayer</span>
-              </button>
-            )}
+            <div className="flex items-center gap-gutter-xs shrink-0">
+              {logs.length > 0 && (
+                <button
+                  type="button"
+                  onClick={openSaveDayAsTemplate}
+                  className="inline-flex items-center gap-1 min-h-[38px] px-gutter-sm rounded-full bg-surface-container border border-outline text-on-surface-variant font-label text-label-sm hover:border-primary hover:text-primary transition-colors active:scale-95"
+                >
+                  <BookmarkPlus className="w-3.5 h-3.5" aria-hidden="true" />
+                  <span>Guardar día</span>
+                </button>
+              )}
+              {prevLogs.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    void onCopyMealsFromYesterday(prevLogs, 'todas las comidas de ayer')
+                  }
+                  className="inline-flex items-center gap-1 min-h-[38px] px-gutter-sm rounded-full bg-surface-container border border-outline text-on-surface-variant font-label text-label-sm hover:border-primary hover:text-primary transition-colors active:scale-95"
+                >
+                  <Copy className="w-3.5 h-3.5" aria-hidden="true" />
+                  <span>Copiar ayer</span>
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="flex flex-col gap-gutter-md">
@@ -628,7 +752,16 @@ export function TodayPage({
                     ))}
                   </div>
 
-                  <footer className="pt-gutter-xs border-t border-outline-variant flex items-center justify-end">
+                  <footer className="pt-gutter-xs border-t border-outline-variant flex items-center justify-between gap-gutter-sm">
+                    <button
+                      type="button"
+                      onClick={() => openSaveSlotAsMenu(slot, slotItems)}
+                      className="inline-flex items-center gap-1.5 min-h-[44px] px-gutter-sm rounded-md bg-transparent text-on-surface-variant font-label text-label-sm transition-colors duration-100 hover:bg-surface-container-high hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary active:scale-95"
+                    >
+                      <BookmarkPlus className="w-4 h-4" aria-hidden="true" />
+                      <span>Guardar menú</span>
+                    </button>
+
                     <button
                       type="button"
                       onClick={() => onAddForSlot(slot)}
@@ -651,6 +784,11 @@ export function TodayPage({
         onClose={() => setEditingEntry(null)}
         onSave={onUpdateMeal}
         onDelete={onDeleteMeal}
+      />
+
+      <SaveTemplateModal
+        mode={saveModalMode}
+        onClose={() => setSaveModalMode(null)}
       />
     </div>
   );

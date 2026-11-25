@@ -2,6 +2,8 @@ import { db } from './database';
 import type {
   ComboIngredient,
   CookState,
+  DayMenuTemplate,
+  DayTemplateEntry,
   FoodItem,
   MealCombo,
   UserProfile,
@@ -374,9 +376,7 @@ export function ensureSeedData(): Promise<void> {
     seedInFlight = (async () => {
       await db.transaction(
         'rw',
-        db.profile,
-        db.foods,
-        db.combos,
+        [db.profile, db.foods, db.combos, db.dayTemplates],
         async () => {
           const existingProfile = await db.profile.get('default');
           if (!existingProfile) {
@@ -395,7 +395,6 @@ export function ensureSeedData(): Promise<void> {
             await db.foods.bulkAdd(SEED_FOODS);
             foodsCount = await db.foods.count();
           } else {
-            // Backfill crudo/cocido metadata en alimentos existentes sin pisar ediciones del usuario
             const allExistingFoods = await db.foods.toArray();
             for (const f of allExistingFoods) {
               const meta = SEED_COOK_METADATA[f.nombre];
@@ -471,6 +470,47 @@ export function ensureSeedData(): Promise<void> {
 
             if (combosToAdd.length > 0) {
               await db.combos.bulkAdd(combosToAdd);
+            }
+          }
+
+          const templatesCount = await db.dayTemplates.count();
+          if (templatesCount === 0) {
+            const allCombos = await db.combos.toArray();
+            if (allCombos.length >= 4) {
+              const entries: DayTemplateEntry[] = allCombos.slice(0, 4).map((c) => ({
+                slot: c.slotSugerido,
+                nombre: c.nombre,
+                cantidadTexto: `Menú (${c.ingredientes.length} ing.)`,
+                kcal: c.totalKcal,
+                proteinaG: c.totalProteinaG,
+                carbohidratosG: c.totalCarbsG,
+                grasasG: c.totalGrasasG,
+                ingredientes: c.ingredientes,
+              }));
+
+              const totalKcal = Math.round(entries.reduce((s, e) => s + e.kcal, 0));
+              const totalProteinaG = Number(
+                entries.reduce((s, e) => s + e.proteinaG, 0).toFixed(1),
+              );
+              const totalCarbsG = Number(
+                entries.reduce((s, e) => s + e.carbohidratosG, 0).toFixed(1),
+              );
+              const totalGrasasG = Number(
+                entries.reduce((s, e) => s + e.grasasG, 0).toFixed(1),
+              );
+
+              const starterTemplate: Omit<DayMenuTemplate, 'id'> = {
+                nombre: 'Día base definición',
+                descripcion: 'Los 4 menús base equilibrados en proteína',
+                entries,
+                totalKcal,
+                totalProteinaG,
+                totalCarbsG,
+                totalGrasasG,
+                createdAt: Date.now(),
+              };
+
+              await db.dayTemplates.add(starterTemplate);
             }
           }
         },

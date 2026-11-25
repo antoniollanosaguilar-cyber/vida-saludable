@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import {
+  ArrowRight,
   Check,
   Clock,
   Pencil,
@@ -20,6 +21,9 @@ import type {
   MealSlot,
 } from '../types/models';
 import { calculatePortionMacros } from '../engine/nutritionEngine';
+import { getMacroDistribution } from '../engine/menuEngine';
+import { MacroSplitBar } from '../components/MacroSplitBar';
+import { ComboDetailSheet } from '../components/ComboDetailSheet';
 import { PortionBottomSheet } from '../components/PortionBottomSheet';
 import { CreateFoodOrComboSheet } from '../components/CreateFoodOrComboSheet';
 import { QuickAddBottomSheet } from '../components/QuickAddBottomSheet';
@@ -33,6 +37,7 @@ import {
   formatMacroG,
   formatUnitQuantity,
   MEAL_SLOT_LABELS,
+  MEAL_SLOTS_ORDER,
   normalizeSearchText,
 } from '../utils/formatters';
 
@@ -75,7 +80,18 @@ interface LogPageProps {
   todayKey: string;
   preselectedSlot: MealSlot | null;
   onClearPreselectedSlot: () => void;
-  onLogCombo: (combo: MealCombo, slot: MealSlot) => Promise<void>;
+  onOpenMenusTab: () => void;
+  onLogCombo: (
+    combo: MealCombo,
+    slot: MealSlot,
+    override?: {
+      scaleLabel?: string;
+      kcal?: number;
+      proteinaG?: number;
+      carbohidratosG?: number;
+      grasasG?: number;
+    },
+  ) => Promise<void>;
   onLogFood: (payload: {
     food: FoodItem;
     slot: MealSlot;
@@ -103,6 +119,7 @@ export function LogPage({
   todayKey,
   preselectedSlot,
   onClearPreselectedSlot,
+  onOpenMenusTab,
   onLogCombo,
   onLogFood,
   onQuickAdd,
@@ -110,12 +127,14 @@ export function LogPage({
 }: LogPageProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<FilterChipId>('favoritos');
+  const [comboSlotFilter, setComboSlotFilter] = useState<'todos' | MealSlot>('todos');
 
   const [selectedFoodState, setSelectedFoodState] = useState<{
     food: FoodItem;
     initialAmount?: number;
     initialCookState?: CookState;
   } | null>(null);
+  const [inspectCombo, setInspectCombo] = useState<MealCombo | null>(null);
 
   const [createSheetOpen, setCreateSheetOpen] = useState(false);
   const [editingFood, setEditingFood] = useState<FoodItem | null>(null);
@@ -175,15 +194,29 @@ export function LogPage({
     return result;
   }, [foods, recentMealLogs]);
 
+  const preferredSlot = preselectedSlot ?? getDefaultSlotByTime();
+
   const filteredCombos = useMemo(() => {
-    if (!normalizedQuery) return combos;
-    return combos.filter((combo) => {
-      const hay = normalizeSearchText(
-        `${combo.nombre} ${combo.ingredientes.map((i) => i.nombre).join(' ')}`,
-      );
-      return hay.includes(normalizedQuery);
+    const base = combos.filter((combo) => {
+      if (normalizedQuery) {
+        const hay = normalizeSearchText(
+          `${combo.nombre} ${combo.ingredientes.map((i) => i.nombre).join(' ')}`,
+        );
+        return hay.includes(normalizedQuery);
+      }
+      if (comboSlotFilter === 'todos') return true;
+      return combo.slotSugerido === comboSlotFilter;
     });
-  }, [combos, normalizedQuery]);
+
+    if (comboSlotFilter === 'todos' && !normalizedQuery) {
+      return [...base].sort((a, b) => {
+        const aPrio = a.slotSugerido === preferredSlot ? 0 : 1;
+        const bPrio = b.slotSugerido === preferredSlot ? 0 : 1;
+        return aPrio - bPrio;
+      });
+    }
+    return base;
+  }, [combos, normalizedQuery, comboSlotFilter, preferredSlot]);
 
   const filteredFoods = useMemo(() => {
     return foods.filter((food) => {
@@ -265,6 +298,19 @@ export function LogPage({
     if (combo.id === undefined) return;
     await db.combos.delete(combo.id);
     onNotify(`Combo "${combo.nombre}" eliminado.`, 'info');
+  }
+
+  async function handleDuplicateCombo(combo: MealCombo) {
+    await db.combos.add({
+      nombre: `${combo.nombre} (copia)`,
+      slotSugerido: combo.slotSugerido,
+      ingredientes: combo.ingredientes.map((i) => ({ ...i })),
+      totalKcal: combo.totalKcal,
+      totalProteinaG: combo.totalProteinaG,
+      totalCarbsG: combo.totalCarbsG,
+      totalGrasasG: combo.totalGrasasG,
+    });
+    onNotify(`Duplicado: "${combo.nombre} (copia)"`);
   }
 
   const effectiveSheetSlot = preselectedSlot ?? getDefaultSlotByTime();
@@ -440,81 +486,146 @@ export function LogPage({
         )}
 
         {/* 2. Combos de 1 toque (cuadrícula 2x2) */}
-        {filteredCombos.length > 0 && (
+        {(combos.length > 0 && (filteredCombos.length > 0 || !normalizedQuery)) && (
           <section aria-labelledby="heading-combos" className="flex flex-col gap-gutter-md">
             <div className="flex items-center justify-between gap-gutter-sm">
               <h2 id="heading-combos" className="font-headline text-headline-md text-on-surface">
-                Combos de 1 toque
+                Menús de 1 toque
               </h2>
-              <span className="font-body text-body-sm text-on-surface-variant">
-                {formatHeaderDate(selectedDate, todayKey)}
-              </span>
+              <button
+                type="button"
+                onClick={onOpenMenusTab}
+                className="inline-flex items-center gap-1 font-label text-label-sm text-primary hover:underline"
+              >
+                <span>Ver planificador</span>
+                <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
+              </button>
             </div>
 
-            <div className="grid grid-cols-2 gap-gutter-md items-stretch">
-              {filteredCombos.map((combo) => {
-                const justAdded = recentAddedKey === `combo-${combo.id}`;
-                return (
-                  <article
-                    key={combo.id}
-                    className="h-full bg-surface-container border border-outline rounded-lg p-gutter-md flex flex-col justify-between gap-gutter-md transition-colors duration-100 hover:bg-surface-container-high"
-                  >
-                    <div className="flex items-start justify-between gap-gutter-xs">
-                      <div className="flex flex-col gap-gutter-xs min-w-0">
-                        <h3 className="font-title text-title-md text-on-surface text-balance">
-                          {combo.nombre}
-                        </h3>
-                        <span className="font-label text-label-sm text-on-surface-variant">
-                          {MEAL_SLOT_LABELS[preselectedSlot ?? combo.slotSugerido]}
-                        </span>
+            {!normalizedQuery && (
+              <div
+                role="group"
+                aria-label="Filtrar menús por horario"
+                className="flex items-center gap-gutter-xs overflow-x-auto no-scrollbar"
+              >
+                {(['todos', ...MEAL_SLOTS_ORDER] as ('todos' | MealSlot)[]).map((slot) => {
+                  const active = comboSlotFilter === slot;
+                  return (
+                    <button
+                      key={slot}
+                      type="button"
+                      aria-pressed={active}
+                      onClick={() => setComboSlotFilter(slot)}
+                      className={`shrink-0 min-h-[32px] px-gutter-sm rounded-full font-label text-label-sm transition-colors ${
+                        active
+                          ? 'bg-secondary-container border border-secondary text-on-secondary-container'
+                          : 'bg-surface-container border border-outline text-on-surface-variant hover:text-on-surface'
+                      }`}
+                    >
+                      {slot === 'todos' ? 'Todos' : MEAL_SLOT_LABELS[slot]}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {filteredCombos.length === 0 ? (
+              <p className="font-body text-body-sm text-on-surface-variant">
+                No hay menús en este horario.
+              </p>
+            ) : (
+              <div className="grid grid-cols-2 gap-gutter-md items-stretch">
+                {filteredCombos.map((combo) => {
+                  const justAdded = recentAddedKey === `combo-${combo.id}`;
+                  const dist = getMacroDistribution(
+                    combo.totalProteinaG,
+                    combo.totalCarbsG,
+                    combo.totalGrasasG,
+                  );
+
+                  return (
+                    <article
+                      key={combo.id}
+                      className="h-full bg-surface-container border border-outline rounded-lg p-gutter-md flex flex-col justify-between gap-gutter-sm transition-colors duration-100 hover:bg-surface-container-high"
+                    >
+                      <div className="flex items-start justify-between gap-gutter-xs">
+                        <button
+                          type="button"
+                          onClick={() => setInspectCombo(combo)}
+                          className="flex-1 min-w-0 text-left flex flex-col gap-gutter-xs"
+                        >
+                          <h3 className="font-title text-title-md text-on-surface text-balance">
+                            {combo.nombre}
+                          </h3>
+                          <div className="flex items-center gap-1 flex-wrap">
+                            <span className="font-label text-label-sm text-on-surface-variant">
+                              {MEAL_SLOT_LABELS[preselectedSlot ?? combo.slotSugerido]}
+                            </span>
+                            {dist.isHighProtein && (
+                              <span className="px-1.5 py-0.5 rounded-full bg-primary-container text-on-primary-container font-label text-[9px]">
+                                Alto P
+                              </span>
+                            )}
+                          </div>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingFood(null);
+                            setScannedDraft(null);
+                            setEditingCombo(combo);
+                            setCreateSheetOpen(true);
+                          }}
+                          aria-label={`Editar combo ${combo.nombre}`}
+                          className="shrink-0 inline-flex items-center justify-center w-8 h-8 rounded-md text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors"
+                        >
+                          <Pencil className="w-3.5 h-3.5" aria-hidden="true" />
+                        </button>
                       </div>
 
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditingFood(null);
-                          setScannedDraft(null);
-                          setEditingCombo(combo);
-                          setCreateSheetOpen(true);
-                        }}
-                        aria-label={`Editar combo ${combo.nombre}`}
-                        className="shrink-0 inline-flex items-center justify-center w-8 h-8 rounded-md text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors"
-                      >
-                        <Pencil className="w-3.5 h-3.5" aria-hidden="true" />
-                      </button>
-                    </div>
+                      <MacroSplitBar
+                        proteinaG={combo.totalProteinaG}
+                        carbohidratosG={combo.totalCarbsG}
+                        grasasG={combo.totalGrasasG}
+                      />
 
-                    <div className="flex items-end justify-between gap-gutter-xs">
-                      <div className="flex flex-col gap-gutter-xs">
-                        <span className="font-body text-body-sm text-on-surface-variant tabular-nums">
-                          {formatKcal(combo.totalKcal)} kcal
-                        </span>
-                        <span className="font-label text-label-md text-primary tabular-nums">
-                          {Math.round(combo.totalProteinaG)} g prot
-                        </span>
+                      <div className="flex items-end justify-between gap-gutter-xs">
+                        <button
+                          type="button"
+                          onClick={() => setInspectCombo(combo)}
+                          className="flex flex-col gap-0.5 text-left"
+                        >
+                          <span className="font-body text-body-sm text-on-surface-variant tabular-nums">
+                            {formatKcal(combo.totalKcal)} kcal
+                          </span>
+                          <span className="font-label text-label-md text-primary tabular-nums">
+                            {Math.round(combo.totalProteinaG)} g prot
+                          </span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => void handleQuickAddCombo(combo)}
+                          aria-label={`Agregar ${combo.nombre}`}
+                          className={`shrink-0 inline-flex items-center justify-center w-11 h-11 rounded-full border transition-colors duration-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary active:scale-95 ${
+                            justAdded
+                              ? 'bg-primary-container border-primary text-on-primary-container'
+                              : 'bg-surface-container-high border-outline text-on-surface hover:border-primary hover:bg-primary-container hover:text-on-primary-container'
+                          }`}
+                        >
+                          {justAdded ? (
+                            <Check className="w-5 h-5" aria-hidden="true" />
+                          ) : (
+                            <Plus className="w-5 h-5" aria-hidden="true" />
+                          )}
+                        </button>
                       </div>
-
-                      <button
-                        type="button"
-                        onClick={() => void handleQuickAddCombo(combo)}
-                        aria-label={`Agregar ${combo.nombre}`}
-                        className={`shrink-0 inline-flex items-center justify-center w-11 h-11 rounded-full border transition-colors duration-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary active:scale-95 ${
-                          justAdded
-                            ? 'bg-primary-container border-primary text-on-primary-container'
-                            : 'bg-surface-container-high border-outline text-on-surface hover:border-primary hover:bg-primary-container hover:text-on-primary-container'
-                        }`}
-                      >
-                        {justAdded ? (
-                          <Check className="w-5 h-5" aria-hidden="true" />
-                        ) : (
-                          <Plus className="w-5 h-5" aria-hidden="true" />
-                        )}
-                      </button>
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
+                    </article>
+                  );
+                })}
+              </div>
+            )}
           </section>
         )}
 
@@ -662,6 +773,28 @@ export function LogPage({
         }}
       />
 
+      <ComboDetailSheet
+        combo={inspectCombo}
+        initialSlot={preselectedSlot ?? inspectCombo?.slotSugerido}
+        onClose={() => setInspectCombo(null)}
+        onConfirm={async (payload) => {
+          await onLogCombo(payload.combo, payload.slot, {
+            scaleLabel: payload.scaleLabel,
+            kcal: payload.kcal,
+            proteinaG: payload.proteinaG,
+            carbohidratosG: payload.carbohidratosG,
+            grasasG: payload.grasasG,
+          });
+        }}
+        onDuplicate={handleDuplicateCombo}
+        onEdit={(combo) => {
+          setEditingFood(null);
+          setScannedDraft(null);
+          setEditingCombo(combo);
+          setCreateSheetOpen(true);
+        }}
+      />
+
       <CreateFoodOrComboSheet
         open={createSheetOpen}
         foods={foods}
@@ -678,6 +811,7 @@ export function LogPage({
         onDeleteFood={handleDeleteFood}
         onSaveCombo={handleSaveCombo}
         onDeleteCombo={handleDeleteCombo}
+        onDuplicateCombo={handleDuplicateCombo}
       />
 
       <QuickAddBottomSheet

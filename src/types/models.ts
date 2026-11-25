@@ -16,6 +16,8 @@ export type MealSlot = 'desayuno' | 'almuerzo' | 'once_cena' | 'snack';
 
 export type CookState = 'crudo' | 'cocido';
 
+export type WeekdayIndex = 0 | 1 | 2 | 3 | 4 | 5 | 6; // 0 = Lunes ... 6 = Domingo
+
 export interface UserProfile {
   id: 'default';
   pesoKg: number;
@@ -85,6 +87,55 @@ export interface MealCombo {
   totalGrasasG: number;
 }
 
+export interface DayTemplateEntry {
+  slot: MealSlot;
+  nombre: string;
+  cantidadTexto: string;
+  kcal: number;
+  proteinaG: number;
+  carbohidratosG: number;
+  grasasG: number;
+  foodId?: number;
+  cantidadNum?: number;
+  unidad?: BaseUnit;
+  cookState?: CookState;
+  ingredientes?: ComboIngredient[];
+}
+
+export interface DayMenuTemplate {
+  id?: number;
+  nombre: string;
+  descripcion?: string;
+  entries: DayTemplateEntry[];
+  totalKcal: number;
+  totalProteinaG: number;
+  totalCarbsG: number;
+  totalGrasasG: number;
+  createdAt: number;
+}
+
+export interface WeeklyPlanAssignment {
+  id: string;
+  slot: MealSlot;
+  comboId?: number;
+  nombre: string;
+  kcal: number;
+  proteinaG: number;
+  carbohidratosG: number;
+  grasasG: number;
+  ingredientes: ComboIngredient[];
+}
+
+export interface WeeklyPlanDay {
+  dayOfWeek: WeekdayIndex; // primary key 0..6
+  assignments: WeeklyPlanAssignment[];
+}
+
+export interface ShoppingCheckItem {
+  key: string; // primary key: normalized ingredient key
+  checked: boolean;
+}
+
 export interface MealLogEntry {
   id?: number;
   fecha: string; // YYYY-MM-DD
@@ -124,4 +175,7 @@ export interface BackupData {
   mealLogs: MealLogEntry[];
   weightLogs: WeightEntry[];
   dailyMetrics?: DailyMetricEntry[];
+  dayTemplates?: DayMenuTemplate[];
+  weeklyPlan?: WeeklyPlanDay[];
+  shoppingChecks?: ShoppingCheckItem[];
 }

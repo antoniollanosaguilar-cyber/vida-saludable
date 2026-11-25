@@ -1,6 +1,12 @@
-import { CalendarDays, PlusCircle, Settings, TrendingUp } from 'lucide-react';
+import {
+  CalendarDays,
+  PlusCircle,
+  Settings,
+  TrendingUp,
+  UtensilsCrossed,
+} from 'lucide-react';
 
-export type AppTab = 'today' | 'log' | 'progress' | 'settings';
+export type AppTab = 'today' | 'log' | 'menus' | 'progress' | 'settings';
 
 interface BottomNavProps {
   activeTab: AppTab;
@@ -14,6 +20,7 @@ const TABS: {
 }[] = [
   { id: 'today', label: 'Hoy', Icon: CalendarDays },
   { id: 'log', label: 'Registrar', Icon: PlusCircle },
+  { id: 'menus', label: 'Menús', Icon: UtensilsCrossed },
   { id: 'progress', label: 'Progreso', Icon: TrendingUp },
   { id: 'settings', label: 'Ajustes', Icon: Settings },
 ];
@@ -24,8 +31,8 @@ export function BottomNav({ activeTab, onChangeTab }: BottomNavProps) {
       aria-label="Navegación principal"
       className="fixed bottom-0 left-0 right-0 z-30 flex justify-center pointer-events-none"
     >
-      <div className="pointer-events-auto w-full max-w-[480px] bg-surface-container border-t border-outline px-gutter-sm pt-gutter-xs pb-[max(8px,env(safe-area-inset-bottom))]">
-        <div role="tablist" aria-label="Navegación principal" className="grid grid-cols-4 gap-gutter-xs">
+      <div className="pointer-events-auto w-full max-w-[480px] bg-surface-container border-t border-outline px-gutter-xs pt-gutter-xs pb-[max(8px,env(safe-area-inset-bottom))]">
+        <div role="tablist" aria-label="Navegación principal" className="grid grid-cols-5 gap-0.5">
           {TABS.map(({ id, label, Icon }) => {
             const active = activeTab === id;
             return (
@@ -43,7 +50,7 @@ export function BottomNav({ activeTab, onChangeTab }: BottomNavProps) {
                 }`}
               >
                 <Icon
-                  className="w-[22px] h-[22px]"
+                  className="w-[21px] h-[21px]"
                   strokeWidth={active ? 2.4 : 1.9}
                   aria-hidden="true"
                 />
