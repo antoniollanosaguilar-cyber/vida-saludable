@@ -1,0 +1,15 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+dist-ssr/
+
+# Local & Editor
+*.local
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+
+# Stitch visual reference
+_stitch_reference/
