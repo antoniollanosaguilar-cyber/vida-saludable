@@ -122,10 +122,18 @@ export function CreateFoodOrComboSheet({
     setCategory('otro');
     setUnit('g');
     setRefPortion('100');
-    setKcal(prefillFoodDraft ? String(prefillFoodDraft.kcal) : '');
-    setProt(prefillFoodDraft ? String(prefillFoodDraft.proteinaG) : '');
-    setCarbs(prefillFoodDraft ? String(prefillFoodDraft.carbohidratosG) : '');
-    setFats(prefillFoodDraft ? String(prefillFoodDraft.grasasG) : '');
+    setKcal(prefillFoodDraft?.kcal !== undefined ? String(prefillFoodDraft.kcal) : '');
+    setProt(
+      prefillFoodDraft?.proteinaG !== undefined ? String(prefillFoodDraft.proteinaG) : '',
+    );
+    setCarbs(
+      prefillFoodDraft?.carbohidratosG !== undefined
+        ? String(prefillFoodDraft.carbohidratosG)
+        : '',
+    );
+    setFats(
+      prefillFoodDraft?.grasasG !== undefined ? String(prefillFoodDraft.grasasG) : '',
+    );
     setFavorite(true);
     setSupportsCookToggle(false);
     setEstadoBase('crudo');
@@ -281,7 +289,9 @@ export function CreateFoodOrComboSheet({
     : editingCombo
       ? 'Editar combo'
       : prefillFoodDraft
-        ? 'Revisar producto escaneado'
+        ? prefillFoodDraft.nombre
+          ? 'Revisar producto escaneado'
+          : 'Crear producto escaneado'
         : 'Nuevo elemento';
 
   return (

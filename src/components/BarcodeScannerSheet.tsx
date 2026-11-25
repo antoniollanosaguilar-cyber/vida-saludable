@@ -1,13 +1,21 @@
 import { useEffect, useRef, useState } from 'react';
-import { Camera, Loader2, ScanBarcode, Search, WifiOff, X } from 'lucide-react';
+import {
+  Camera,
+  Loader2,
+  PlusCircle,
+  ScanBarcode,
+  Search,
+  WifiOff,
+  X,
+} from 'lucide-react';
 import type { FoodItem } from '../types/models';
 
 export interface ScannedProductDraft {
   nombre: string;
-  kcal: number;
-  proteinaG: number;
-  carbohidratosG: number;
-  grasasG: number;
+  kcal?: number;
+  proteinaG?: number;
+  carbohidratosG?: number;
+  grasasG?: number;
   codigoBarras: string;
 }
 
@@ -38,6 +46,8 @@ interface OpenFoodFactsResponse {
     nutriments?: {
       'energy-kcal_100g'?: number;
       'energy-kcal'?: number;
+      'energy-kj_100g'?: number;
+      energy_100g?: number;
       proteins_100g?: number;
       carbohydrates_100g?: number;
       fat_100g?: number;
@@ -54,6 +64,7 @@ export function BarcodeScannerSheet({
 }: BarcodeScannerSheetProps) {
   const [manualCode, setManualCode] = useState('');
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
+  const [notFoundCode, setNotFoundCode] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [cameraActive, setCameraActive] = useState(false);
@@ -82,12 +93,22 @@ export function BarcodeScannerSheet({
     }
     setManualCode('');
     setStatusMsg(null);
+    setNotFoundCode(null);
     setErrorMsg(null);
     detectedLockRef.current = false;
     return () => {
       stopCamera();
     };
   }, [open]);
+
+  function openManualCreateWithBarcode(code: string) {
+    stopCamera();
+    onProductResolved({
+      nombre: '',
+      codigoBarras: code,
+    });
+    onClose();
+  }
 
   async function lookupBarcode(rawCode: string) {
     const code = rawCode.replace(/\D/g, '').trim();
@@ -98,6 +119,7 @@ export function BarcodeScannerSheet({
 
     stopCamera();
     setErrorMsg(null);
+    setNotFoundCode(null);
 
     // 1. Revisar catálogo local offline primero
     const localMatch = existingFoods.find((f) => f.codigoBarras === code);
@@ -109,8 +131,9 @@ export function BarcodeScannerSheet({
 
     // 2. Verificar conectividad antes de consultar Open Food Facts
     if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      setNotFoundCode(code);
       setErrorMsg(
-        'Sin conexión a internet. Este código aún no está en tu catálogo local; créalo manualmente y quedará guardado offline.',
+        'Estás sin conexión y este código aún no está en tu catálogo local.',
       );
       return;
     }
@@ -118,19 +141,30 @@ export function BarcodeScannerSheet({
     setLoading(true);
     setStatusMsg(`Buscando código ${code} en Open Food Facts...`);
 
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 10000);
+
     try {
       const res = await fetch(
         `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(code)}.json?fields=product_name,product_name_es,brands,nutriments`,
+        { signal: controller.signal },
       );
-      if (!res.ok) {
-        throw new Error('HTTP error');
+
+      // En la API v2 de Open Food Facts, un producto inexistente devuelve HTTP 404 con status: 0
+      if (res.status === 404) {
+        setNotFoundCode(code);
+        setStatusMsg(null);
+        return;
       }
+
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+
       const data = (await res.json()) as OpenFoodFactsResponse;
 
       if (data.status !== 1 || !data.product) {
-        setErrorMsg(
-          `No encontramos el producto ${code}. Puedes crearlo manualmente y quedará disponible offline.`,
-        );
+        setNotFoundCode(code);
         setStatusMsg(null);
         return;
       }
@@ -144,9 +178,15 @@ export function BarcodeScannerSheet({
           : baseName || `Producto ${code}`;
 
       const nutr = p.nutriments ?? {};
-      const kcal = Math.round(
-        Number(nutr['energy-kcal_100g'] ?? nutr['energy-kcal'] ?? 0) || 0,
-      );
+      let kcalVal = Number(nutr['energy-kcal_100g'] ?? nutr['energy-kcal']);
+      if (!Number.isFinite(kcalVal) || kcalVal <= 0) {
+        const kjVal = Number(nutr['energy-kj_100g'] ?? nutr.energy_100g);
+        if (Number.isFinite(kjVal) && kjVal > 0) {
+          kcalVal = kjVal / 4.184;
+        }
+      }
+
+      const kcal = Number.isFinite(kcalVal) && kcalVal > 0 ? Math.round(kcalVal) : 0;
       const proteinaG = Number((Number(nutr.proteins_100g ?? 0) || 0).toFixed(1));
       const carbohidratosG = Number(
         (Number(nutr.carbohydrates_100g ?? 0) || 0).toFixed(1),
@@ -163,17 +203,20 @@ export function BarcodeScannerSheet({
       });
       onClose();
     } catch {
+      setNotFoundCode(code);
       setErrorMsg(
-        'No se pudo consultar Open Food Facts. Verifica tu conexión o crea el alimento manualmente.',
+        'No se pudo conectar con Open Food Facts (conexión lenta o sin señal). Puedes crear el alimento con este código ahora mismo.',
       );
       setStatusMsg(null);
     } finally {
+      window.clearTimeout(timeoutId);
       setLoading(false);
     }
   }
 
   async function startCameraScan() {
     setErrorMsg(null);
+    setNotFoundCode(null);
     if (!navigator.mediaDevices?.getUserMedia) {
       setErrorMsg('Este navegador no permite acceso a cámara. Usa el ingreso manual del código.');
       return;
@@ -345,6 +388,7 @@ export function BarcodeScannerSheet({
               onChange={(e) => {
                 setManualCode(e.target.value);
                 setErrorMsg(null);
+                setNotFoundCode(null);
               }}
               className="flex-1 min-h-[44px] px-gutter-md rounded-md bg-surface-container-high border border-outline font-mono text-body-md text-on-surface placeholder:text-on-surface-variant focus:outline-none focus:border-primary"
             />
@@ -363,10 +407,28 @@ export function BarcodeScannerSheet({
           </div>
         </form>
 
-        {statusMsg && !errorMsg && (
+        {statusMsg && !errorMsg && !notFoundCode && (
           <p className="font-body text-body-sm text-secondary">{statusMsg}</p>
         )}
-        {errorMsg && (
+
+        {notFoundCode && (
+          <div className="bg-warning-container/60 border border-warning rounded-md p-gutter-md flex flex-col gap-gutter-md">
+            <p className="font-body text-body-sm text-on-warning-container text-pretty">
+              {errorMsg ??
+                `El código ${notFoundCode} aún no está en Open Food Facts. Puedes ingresarlo una vez desde su etiqueta y quedará guardado offline en Samsara.`}
+            </p>
+            <button
+              type="button"
+              onClick={() => openManualCreateWithBarcode(notFoundCode)}
+              className="w-full min-h-[44px] px-gutter-md rounded-md bg-primary text-on-primary font-label text-label-md inline-flex items-center justify-center gap-gutter-sm hover:bg-on-primary-container transition-colors"
+            >
+              <PlusCircle className="w-4 h-4" aria-hidden="true" />
+              <span>Crear alimento con este código</span>
+            </button>
+          </div>
+        )}
+
+        {errorMsg && !notFoundCode && (
           <p className="font-body text-body-sm text-error text-pretty" role="alert">
             {errorMsg}
           </p>
