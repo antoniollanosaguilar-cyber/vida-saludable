@@ -11,6 +11,7 @@ import type {
 import { normalizeSearchText } from '../utils/formatters';
 
 export const CHILEAN_SEED_PACK_ID = 'chilean-recipes-v1';
+export const CHILEAN_SEED_PACK_V2_ID = 'chilean-recipes-v2';
 
 export const DEFAULT_PROFILE: UserProfile = {
   id: 'default',
@@ -483,6 +484,39 @@ export const SEED_FOODS: Omit<FoodItem, 'id'>[] = [
     grasasG: 0.3,
     esFavorito: false,
   },
+  {
+    nombre: 'Arvejas cocidas',
+    categoria: 'carbohidrato',
+    unidadBase: 'g',
+    porcionReferencia: 100,
+    kcal: 84,
+    proteinaG: 5.4,
+    carbohidratosG: 15.6,
+    grasasG: 0.2,
+    esFavorito: false,
+  },
+  {
+    nombre: 'Zanahoria',
+    categoria: 'fruta_verdura',
+    unidadBase: 'g',
+    porcionReferencia: 100,
+    kcal: 41,
+    proteinaG: 0.9,
+    carbohidratosG: 9.6,
+    grasasG: 0.2,
+    esFavorito: false,
+  },
+  {
+    nombre: 'Harina de trigo',
+    categoria: 'carbohidrato',
+    unidadBase: 'g',
+    porcionReferencia: 100,
+    kcal: 364,
+    proteinaG: 10.3,
+    carbohidratosG: 76.3,
+    grasasG: 1,
+    esFavorito: false,
+  },
 ];
 
 function buildCombo(
@@ -736,6 +770,72 @@ const CHILEAN_RECIPES: RecipeBlueprint[] = [
   },
 ];
 
+const CHILEAN_RECIPES_V2: RecipeBlueprint[] = [
+  {
+    nombre: 'Humitas con ensalada chilena',
+    slotSugerido: 'almuerzo',
+    etiqueta: 'chilena',
+    items: [
+      { foodName: 'Choclo', cantidad: 280 },
+      { foodName: 'Cebolla', cantidad: 60 },
+      { foodName: 'Leche descremada', cantidad: 60 },
+      { foodName: 'Aceite de oliva', cantidad: 8 },
+      { foodName: 'Tomate', cantidad: 150 },
+    ],
+  },
+  {
+    nombre: 'Porotos granados con mazamorra',
+    slotSugerido: 'almuerzo',
+    etiqueta: 'chilena',
+    items: [
+      { foodName: 'Porotos cocidos', cantidad: 220 },
+      { foodName: 'Choclo', cantidad: 140 },
+      { foodName: 'Zapallo camote', cantidad: 120 },
+      { foodName: 'Cebolla', cantidad: 50 },
+      { foodName: 'Tomate', cantidad: 80 },
+      { foodName: 'Aceite de oliva', cantidad: 5 },
+    ],
+  },
+  {
+    nombre: 'Empanada de pino al horno',
+    slotSugerido: 'almuerzo',
+    etiqueta: 'chilena',
+    items: [
+      { foodName: 'Harina de trigo', cantidad: 75 },
+      { foodName: 'Posta rosada', cantidad: 90 },
+      { foodName: 'Cebolla', cantidad: 70 },
+      { foodName: 'Huevo entero', cantidad: 0.5 },
+      { foodName: 'Aceite de oliva', cantidad: 10 },
+    ],
+  },
+  {
+    nombre: 'Pollo arvejado con arroz',
+    slotSugerido: 'almuerzo',
+    etiqueta: 'chilena',
+    items: [
+      { foodName: 'Trutro de pollo sin piel', cantidad: 180 },
+      { foodName: 'Arroz cocido', cantidad: 140 },
+      { foodName: 'Arvejas cocidas', cantidad: 70 },
+      { foodName: 'Zanahoria', cantidad: 60 },
+      { foodName: 'Cebolla', cantidad: 50 },
+      { foodName: 'Aceite de oliva', cantidad: 5 },
+    ],
+  },
+  {
+    nombre: 'Pastel de papa casero',
+    slotSugerido: 'almuerzo',
+    etiqueta: 'chilena',
+    items: [
+      { foodName: 'Carne molida magra (5%)', cantidad: 160 },
+      { foodName: 'Papa cocida', cantidad: 240 },
+      { foodName: 'Cebolla', cantidad: 70 },
+      { foodName: 'Huevo entero', cantidad: 0.5 },
+      { foodName: 'Leche descremada', cantidad: 60 },
+      { foodName: 'Aceite de oliva', cantidad: 5 },
+    ],
+  },
+];
+
 function buildDayTemplateFromCombos(
   nombre: string,
   descripcion: string,
@@ -898,9 +998,29 @@ export function ensureSeedData(): Promise<void> {
             }
           }
 
-          // --- Pack idempotente de recetas de comida chilena (para instalaciones nuevas y existentes) ---
-          const appliedPacks = activeProfile.seedPacksApplied ?? [];
-          if (!appliedPacks.includes(CHILEAN_SEED_PACK_ID)) {
+          // --- Packs idempotentes de recetas de comida chilena (instalaciones nuevas y existentes) ---
+          const appliedPacks = new Set(activeProfile.seedPacksApplied ?? []);
+          const pendingPacks: {
+            id: string;
+            recipes: RecipeBlueprint[];
+            addDayTemplate?: boolean;
+          }[] = [];
+
+          if (!appliedPacks.has(CHILEAN_SEED_PACK_ID)) {
+            pendingPacks.push({
+              id: CHILEAN_SEED_PACK_ID,
+              recipes: CHILEAN_RECIPES,
+              addDayTemplate: true,
+            });
+          }
+          if (!appliedPacks.has(CHILEAN_SEED_PACK_V2_ID)) {
+            pendingPacks.push({
+              id: CHILEAN_SEED_PACK_V2_ID,
+              recipes: CHILEAN_RECIPES_V2,
+            });
+          }
+
+          if (pendingPacks.length > 0) {
             const currentFoods = await db.foods.toArray();
             const existingFoodNames = new Set(
               currentFoods.map((f) => normalizeSearchText(f.nombre)),
@@ -926,29 +1046,33 @@ export function ensureSeedData(): Promise<void> {
             );
 
             const chileanCombosToAdd: Omit<MealCombo, 'id'>[] = [];
-            for (const recipe of CHILEAN_RECIPES) {
-              if (existingComboNames.has(normalizeSearchText(recipe.nombre))) {
-                continue;
-              }
-              const resolvedItems: { food: FoodItem; cantidad: number }[] = [];
-              let allFound = true;
-              for (const item of recipe.items) {
-                const food = getFoodByName(item.foodName);
-                if (!food) {
-                  allFound = false;
-                  break;
+            for (const pack of pendingPacks) {
+              for (const recipe of pack.recipes) {
+                const normName = normalizeSearchText(recipe.nombre);
+                if (existingComboNames.has(normName)) {
+                  continue;
                 }
-                resolvedItems.push({ food, cantidad: item.cantidad });
-              }
-              if (allFound && resolvedItems.length > 0) {
-                chileanCombosToAdd.push(
-                  buildCombo(
-                    recipe.nombre,
-                    recipe.slotSugerido,
-                    resolvedItems,
-                    recipe.etiqueta,
-                  ),
-                );
+                const resolvedItems: { food: FoodItem; cantidad: number }[] = [];
+                let allFound = true;
+                for (const item of recipe.items) {
+                  const food = getFoodByName(item.foodName);
+                  if (!food) {
+                    allFound = false;
+                    break;
+                  }
+                  resolvedItems.push({ food, cantidad: item.cantidad });
+                }
+                if (allFound && resolvedItems.length > 0) {
+                  existingComboNames.add(normName);
+                  chileanCombosToAdd.push(
+                    buildCombo(
+                      recipe.nombre,
+                      recipe.slotSugerido,
+                      resolvedItems,
+                      recipe.etiqueta,
+                    ),
+                  );
+                }
               }
             }
 
@@ -956,40 +1080,44 @@ export function ensureSeedData(): Promise<void> {
               await db.combos.bulkAdd(chileanCombosToAdd);
             }
 
-            // Plantilla de día completo chileno
-            const existingTemplates = await db.dayTemplates.toArray();
-            const existingTemplateNames = new Set(
-              existingTemplates.map((t) => normalizeSearchText(t.nombre)),
-            );
-            const chileanDayName = 'Día chileno equilibrado';
-            if (!existingTemplateNames.has(normalizeSearchText(chileanDayName))) {
-              const allCombosNow = await db.combos.toArray();
-              const comboByNormName = new Map(
-                allCombosNow.map((c) => [normalizeSearchText(c.nombre), c]),
+            if (pendingPacks.some((p) => p.addDayTemplate)) {
+              const existingTemplates = await db.dayTemplates.toArray();
+              const existingTemplateNames = new Set(
+                existingTemplates.map((t) => normalizeSearchText(t.nombre)),
               );
-              const dayComboNames = [
-                'Desayuno chileno: marraqueta huevo + palta',
-                'Cazuela de vacuno',
-                'Batido whey + plátano',
-                'Once chilena: marraqueta pavo + quesillo + palta',
-              ];
-              const picked = dayComboNames
-                .map((n) => comboByNormName.get(normalizeSearchText(n)))
-                .filter((c): c is MealCombo => Boolean(c));
-
-              if (picked.length >= 3) {
-                await db.dayTemplates.add(
-                  buildDayTemplateFromCombos(
-                    chileanDayName,
-                    'Desayuno chileno, cazuela de vacuno, snack proteico y once con marraqueta',
-                    picked,
-                  ),
+              const chileanDayName = 'Día chileno equilibrado';
+              if (!existingTemplateNames.has(normalizeSearchText(chileanDayName))) {
+                const allCombosNow = await db.combos.toArray();
+                const comboByNormName = new Map(
+                  allCombosNow.map((c) => [normalizeSearchText(c.nombre), c]),
                 );
+                const dayComboNames = [
+                  'Desayuno chileno: marraqueta huevo + palta',
+                  'Cazuela de vacuno',
+                  'Batido whey + plátano',
+                  'Once chilena: marraqueta pavo + quesillo + palta',
+                ];
+                const picked = dayComboNames
+                  .map((n) => comboByNormName.get(normalizeSearchText(n)))
+                  .filter((c): c is MealCombo => Boolean(c));
+
+                if (picked.length >= 3) {
+                  await db.dayTemplates.add(
+                    buildDayTemplateFromCombos(
+                      chileanDayName,
+                      'Desayuno chileno, cazuela de vacuno, snack proteico y once con marraqueta',
+                      picked,
+                    ),
+                  );
+                }
               }
             }
 
+            for (const pack of pendingPacks) {
+              appliedPacks.add(pack.id);
+            }
             await db.profile.update('default', {
-              seedPacksApplied: [...appliedPacks, CHILEAN_SEED_PACK_ID],
+              seedPacksApplied: Array.from(appliedPacks),
             });
           }
         },
