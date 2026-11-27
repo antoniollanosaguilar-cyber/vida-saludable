@@ -9,9 +9,11 @@ import {
   Play,
   Plus,
   RotateCcw,
+  Search,
   ShoppingCart,
   Sparkles,
   Trash2,
+  X,
 } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/database';
@@ -44,10 +46,11 @@ import {
   formatKcal,
   MEAL_SLOT_LABELS,
   MEAL_SLOTS_ORDER,
+  normalizeSearchText,
 } from '../utils/formatters';
 
 type MenusSubTab = 'combos' | 'days' | 'week';
-type SlotFilter = 'todos' | MealSlot;
+type SlotFilter = 'todos' | 'chilena' | MealSlot;
 
 function getDefaultSlotByTime(): MealSlot {
   const hour = new Date().getHours();
@@ -91,6 +94,7 @@ export function MenusPage({
 }: MenusPageProps) {
   const [subTab, setSubTab] = useState<MenusSubTab>('combos');
   const [slotFilter, setSlotFilter] = useState<SlotFilter>('todos');
+  const [menuSearch, setMenuSearch] = useState('');
   const [selectedWeekday, setSelectedWeekday] = useState<WeekdayIndex>(() =>
     getTodayWeekdayIndex(),
   );
@@ -146,23 +150,34 @@ export function MenusPage({
     [combos, remainingKcal, remainingProtG, currentSlotByTime],
   );
 
-  const sortedFilteredCombos = useMemo(() => {
-    const list =
-      slotFilter === 'todos'
-        ? [...combos]
-        : combos.filter((c) => c.slotSugerido === slotFilter);
+  const normalizedMenuSearch = normalizeSearchText(menuSearch);
 
-    // Prioriza el horario actual arriba cuando se muestran todos
-    if (slotFilter === 'todos') {
+  const sortedFilteredCombos = useMemo(() => {
+    const list = combos.filter((c) => {
+      if (normalizedMenuSearch) {
+        const hay = normalizeSearchText(
+          `${c.nombre} ${c.etiqueta ?? ''} ${c.ingredientes.map((i) => i.nombre).join(' ')}`,
+        );
+        if (!hay.includes(normalizedMenuSearch)) return false;
+      }
+      if (slotFilter === 'todos') return true;
+      if (slotFilter === 'chilena') return c.etiqueta === 'chilena';
+      return c.slotSugerido === slotFilter;
+    });
+
+    // Prioriza el horario actual arriba cuando se muestran todos o comida chilena
+    if (slotFilter === 'todos' || slotFilter === 'chilena') {
       list.sort((a, b) => {
         const aMatch = a.slotSugerido === currentSlotByTime ? 0 : 1;
         const bMatch = b.slotSugerido === currentSlotByTime ? 0 : 1;
         if (aMatch !== bMatch) return aMatch - bMatch;
         return a.nombre.localeCompare(b.nombre, 'es');
       });
+    } else {
+      list.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
     }
     return list;
-  }, [combos, slotFilter, currentSlotByTime]);
+  }, [combos, slotFilter, currentSlotByTime, normalizedMenuSearch]);
 
   const weeklyPlanMap = useMemo(() => {
     const map = new Map<WeekdayIndex, WeeklyPlanAssignment[]>();
@@ -221,6 +236,7 @@ export function MenusPage({
     await db.combos.add({
       nombre: `${combo.nombre} (copia)`,
       slotSugerido: combo.slotSugerido,
+      ...(combo.etiqueta ? { etiqueta: combo.etiqueta } : {}),
       ingredientes: combo.ingredientes.map((i) => ({ ...i })),
       totalKcal: combo.totalKcal,
       totalProteinaG: combo.totalProteinaG,
@@ -550,7 +566,7 @@ export function MenusPage({
               </section>
             )}
 
-            {/* Filtros por horario */}
+            {/* Buscador + filtros por horario y comida chilena */}
             <section aria-labelledby="heading-mis-menus" className="flex flex-col gap-gutter-md">
               <div className="flex items-center justify-between gap-gutter-sm">
                 <h2 id="heading-mis-menus" className="font-headline text-headline-md text-on-surface">
@@ -561,13 +577,44 @@ export function MenusPage({
                 </span>
               </div>
 
+              <div className="relative flex items-center">
+                <Search
+                  className="w-4 h-4 text-on-surface-variant absolute left-gutter-md pointer-events-none"
+                  aria-hidden="true"
+                />
+                <input
+                  type="search"
+                  value={menuSearch}
+                  onChange={(e) => setMenuSearch(e.target.value)}
+                  placeholder="Buscar receta o ingrediente (ej. cazuela, palta)..."
+                  aria-label="Buscar receta guardada"
+                  className="w-full min-h-[42px] pl-10 pr-9 rounded-md bg-surface-container border border-outline font-body text-body-md text-on-surface placeholder:text-on-surface-variant focus:outline-none focus:border-primary"
+                />
+                {menuSearch && (
+                  <button
+                    type="button"
+                    onClick={() => setMenuSearch('')}
+                    aria-label="Limpiar búsqueda de menús"
+                    className="absolute right-2 inline-flex items-center justify-center w-7 h-7 rounded-full text-on-surface-variant hover:text-on-surface"
+                  >
+                    <X className="w-4 h-4" aria-hidden="true" />
+                  </button>
+                )}
+              </div>
+
               <div
                 role="group"
-                aria-label="Filtrar menús por horario"
+                aria-label="Filtrar menús por categoría u horario"
                 className="flex items-center gap-gutter-sm overflow-x-auto no-scrollbar"
               >
-                {(['todos', ...MEAL_SLOTS_ORDER] as SlotFilter[]).map((slot) => {
+                {(['todos', 'chilena', ...MEAL_SLOTS_ORDER] as SlotFilter[]).map((slot) => {
                   const active = slotFilter === slot;
+                  const label =
+                    slot === 'todos'
+                      ? 'Todos'
+                      : slot === 'chilena'
+                        ? 'Comida chilena'
+                        : MEAL_SLOT_LABELS[slot];
                   return (
                     <button
                       key={slot}
@@ -576,11 +623,13 @@ export function MenusPage({
                       onClick={() => setSlotFilter(slot)}
                       className={`shrink-0 min-h-[36px] px-gutter-md rounded-full font-label text-label-md transition-colors ${
                         active
-                          ? 'bg-primary-container border border-primary text-on-primary-container'
+                          ? slot === 'chilena'
+                            ? 'bg-secondary-container border border-secondary text-on-secondary-container'
+                            : 'bg-primary-container border border-primary text-on-primary-container'
                           : 'bg-surface-container border border-outline text-on-surface-variant hover:text-on-surface'
                       }`}
                     >
-                      {slot === 'todos' ? 'Todos' : MEAL_SLOT_LABELS[slot]}
+                      {label}
                     </button>
                   );
                 })}
@@ -589,7 +638,9 @@ export function MenusPage({
               {sortedFilteredCombos.length === 0 ? (
                 <div className="bg-surface-container border border-outline rounded-lg p-gutter-xl text-center">
                   <p className="font-body text-body-md text-on-surface-variant">
-                    Aún no tienes menús en este horario.
+                    {normalizedMenuSearch
+                      ? 'No se encontraron recetas con ese criterio.'
+                      : 'Aún no tienes menús en esta categoría.'}
                   </p>
                 </div>
               ) : (
@@ -617,6 +668,11 @@ export function MenusPage({
                               <h3 className="font-title text-title-md text-on-surface">
                                 {combo.nombre}
                               </h3>
+                              {combo.etiqueta === 'chilena' && (
+                                <span className="px-2 py-0.5 rounded-full bg-secondary-container border border-secondary/50 font-label text-[10px] text-on-secondary-container">
+                                  Chilena
+                                </span>
+                              )}
                               {dist.isHighProtein && (
                                 <span className="px-2 py-0.5 rounded-full bg-primary-container border border-primary/50 font-label text-[10px] text-on-primary-container">
                                   Alto en P

@@ -8,6 +8,9 @@ import type {
   MealCombo,
   UserProfile,
 } from '../types/models';
+import { normalizeSearchText } from '../utils/formatters';
+
+export const CHILEAN_SEED_PACK_ID = 'chilean-recipes-v1';
 
 export const DEFAULT_PROFILE: UserProfile = {
   id: 'default',
@@ -32,13 +35,18 @@ export const SEED_COOK_METADATA: Record<
 > = {
   'Pechuga de pollo cruda': { estadoBase: 'crudo', factorCoccion: 0.75 },
   'Posta rosada': { estadoBase: 'crudo', factorCoccion: 0.74 },
+  'Carne molida magra (5%)': { estadoBase: 'crudo', factorCoccion: 0.75 },
+  'Trutro de pollo sin piel': { estadoBase: 'crudo', factorCoccion: 0.76 },
+  'Reineta / Merluza': { estadoBase: 'crudo', factorCoccion: 0.78 },
   'Salmón': { estadoBase: 'crudo', factorCoccion: 0.8 },
   'Avena': { estadoBase: 'crudo', factorCoccion: 2.5 },
   'Arroz cocido': { estadoBase: 'cocido', factorCoccion: 2.8 },
   'Arroz basmati cocido': { estadoBase: 'cocido', factorCoccion: 2.7 },
+  'Fideos cocidos': { estadoBase: 'cocido', factorCoccion: 2.3 },
   'Papa cocida': { estadoBase: 'cocido', factorCoccion: 1.05 },
   'Lentejas cocidas': { estadoBase: 'cocido', factorCoccion: 2.5 },
   'Porotos cocidos': { estadoBase: 'cocido', factorCoccion: 2.4 },
+  'Garbanzos cocidos': { estadoBase: 'cocido', factorCoccion: 2.2 },
 };
 
 export const SEED_FOODS: Omit<FoodItem, 'id'>[] = [
@@ -326,12 +334,162 @@ export const SEED_FOODS: Omit<FoodItem, 'id'>[] = [
     grasasG: 1.5,
     esFavorito: true,
   },
+  // --- Ingredientes esenciales de cocina chilena ---
+  {
+    nombre: 'Carne molida magra (5%)',
+    categoria: 'proteina',
+    unidadBase: 'g',
+    porcionReferencia: 100,
+    kcal: 137,
+    proteinaG: 21.4,
+    carbohidratosG: 0,
+    grasasG: 5,
+    esFavorito: false,
+    ...SEED_COOK_METADATA['Carne molida magra (5%)'],
+  },
+  {
+    nombre: 'Trutro de pollo sin piel',
+    categoria: 'proteina',
+    unidadBase: 'g',
+    porcionReferencia: 100,
+    kcal: 145,
+    proteinaG: 19.5,
+    carbohidratosG: 0,
+    grasasG: 7.2,
+    esFavorito: false,
+    ...SEED_COOK_METADATA['Trutro de pollo sin piel'],
+  },
+  {
+    nombre: 'Reineta / Merluza',
+    categoria: 'proteina',
+    unidadBase: 'g',
+    porcionReferencia: 100,
+    kcal: 96,
+    proteinaG: 20,
+    carbohidratosG: 0,
+    grasasG: 1.5,
+    esFavorito: false,
+    ...SEED_COOK_METADATA['Reineta / Merluza'],
+  },
+  {
+    nombre: 'Jamón de pavo',
+    categoria: 'proteina',
+    unidadBase: 'g',
+    porcionReferencia: 100,
+    kcal: 105,
+    proteinaG: 20,
+    carbohidratosG: 2,
+    grasasG: 1.5,
+    esFavorito: false,
+  },
+  {
+    nombre: 'Quesillo',
+    categoria: 'lacteo',
+    unidadBase: 'g',
+    porcionReferencia: 100,
+    kcal: 98,
+    proteinaG: 12.5,
+    carbohidratosG: 3.5,
+    grasasG: 3.5,
+    esFavorito: false,
+  },
+  {
+    nombre: 'Pan marraqueta',
+    categoria: 'carbohidrato',
+    unidadBase: 'g',
+    porcionReferencia: 100,
+    kcal: 268,
+    proteinaG: 8.5,
+    carbohidratosG: 55,
+    grasasG: 1.5,
+    esFavorito: false,
+  },
+  {
+    nombre: 'Fideos cocidos',
+    categoria: 'carbohidrato',
+    unidadBase: 'g',
+    porcionReferencia: 100,
+    kcal: 131,
+    proteinaG: 5,
+    carbohidratosG: 25,
+    grasasG: 1.1,
+    esFavorito: false,
+    ...SEED_COOK_METADATA['Fideos cocidos'],
+  },
+  {
+    nombre: 'Choclo',
+    categoria: 'carbohidrato',
+    unidadBase: 'g',
+    porcionReferencia: 100,
+    kcal: 96,
+    proteinaG: 3.4,
+    carbohidratosG: 21,
+    grasasG: 1.5,
+    esFavorito: false,
+  },
+  {
+    nombre: 'Garbanzos cocidos',
+    categoria: 'carbohidrato',
+    unidadBase: 'g',
+    porcionReferencia: 100,
+    kcal: 164,
+    proteinaG: 8.9,
+    carbohidratosG: 27.4,
+    grasasG: 2.6,
+    esFavorito: false,
+    ...SEED_COOK_METADATA['Garbanzos cocidos'],
+  },
+  {
+    nombre: 'Zapallo camote',
+    categoria: 'fruta_verdura',
+    unidadBase: 'g',
+    porcionReferencia: 100,
+    kcal: 34,
+    proteinaG: 1,
+    carbohidratosG: 8,
+    grasasG: 0.1,
+    esFavorito: false,
+  },
+  {
+    nombre: 'Porotos verdes',
+    categoria: 'fruta_verdura',
+    unidadBase: 'g',
+    porcionReferencia: 100,
+    kcal: 31,
+    proteinaG: 1.8,
+    carbohidratosG: 7,
+    grasasG: 0.2,
+    esFavorito: false,
+  },
+  {
+    nombre: 'Cebolla',
+    categoria: 'fruta_verdura',
+    unidadBase: 'g',
+    porcionReferencia: 100,
+    kcal: 40,
+    proteinaG: 1.1,
+    carbohidratosG: 9.3,
+    grasasG: 0.1,
+    esFavorito: false,
+  },
+  {
+    nombre: 'Zapallo italiano',
+    categoria: 'fruta_verdura',
+    unidadBase: 'g',
+    porcionReferencia: 100,
+    kcal: 17,
+    proteinaG: 1.2,
+    carbohidratosG: 3.1,
+    grasasG: 0.3,
+    esFavorito: false,
+  },
 ];
 
 function buildCombo(
   nombre: string,
   slotSugerido: MealCombo['slotSugerido'],
   items: { food: FoodItem; cantidad: number }[],
+  etiqueta?: string,
 ): Omit<MealCombo, 'id'> {
   const ingredientes: ComboIngredient[] = items.map(({ food, cantidad }) => {
     const factor = cantidad / food.porcionReferencia;
@@ -361,11 +519,259 @@ function buildCombo(
   return {
     nombre,
     slotSugerido,
+    ...(etiqueta ? { etiqueta } : {}),
     ingredientes,
     totalKcal,
     totalProteinaG,
     totalCarbsG,
     totalGrasasG,
+  };
+}
+
+interface RecipeBlueprint {
+  nombre: string;
+  slotSugerido: MealCombo['slotSugerido'];
+  etiqueta?: string;
+  items: { foodName: string; cantidad: number }[];
+}
+
+const CHILEAN_RECIPES: RecipeBlueprint[] = [
+  {
+    nombre: 'Cazuela de vacuno',
+    slotSugerido: 'almuerzo',
+    etiqueta: 'chilena',
+    items: [
+      { foodName: 'Posta rosada', cantidad: 180 },
+      { foodName: 'Papa cocida', cantidad: 150 },
+      { foodName: 'Zapallo camote', cantidad: 100 },
+      { foodName: 'Choclo', cantidad: 80 },
+      { foodName: 'Porotos verdes', cantidad: 60 },
+      { foodName: 'Arroz cocido', cantidad: 50 },
+    ],
+  },
+  {
+    nombre: 'Cazuela de ave',
+    slotSugerido: 'almuerzo',
+    etiqueta: 'chilena',
+    items: [
+      { foodName: 'Trutro de pollo sin piel', cantidad: 180 },
+      { foodName: 'Papa cocida', cantidad: 150 },
+      { foodName: 'Zapallo camote', cantidad: 100 },
+      { foodName: 'Choclo', cantidad: 70 },
+      { foodName: 'Porotos verdes', cantidad: 60 },
+      { foodName: 'Arroz cocido', cantidad: 50 },
+    ],
+  },
+  {
+    nombre: 'Charquicán con huevo',
+    slotSugerido: 'almuerzo',
+    etiqueta: 'chilena',
+    items: [
+      { foodName: 'Carne molida magra (5%)', cantidad: 150 },
+      { foodName: 'Papa cocida', cantidad: 180 },
+      { foodName: 'Zapallo camote', cantidad: 120 },
+      { foodName: 'Choclo', cantidad: 50 },
+      { foodName: 'Cebolla', cantidad: 50 },
+      { foodName: 'Huevo entero', cantidad: 1 },
+      { foodName: 'Aceite de oliva', cantidad: 5 },
+    ],
+  },
+  {
+    nombre: 'Pastel de choclo casero',
+    slotSugerido: 'almuerzo',
+    etiqueta: 'chilena',
+    items: [
+      { foodName: 'Carne molida magra (5%)', cantidad: 140 },
+      { foodName: 'Pechuga de pollo cruda', cantidad: 60 },
+      { foodName: 'Choclo', cantidad: 180 },
+      { foodName: 'Cebolla', cantidad: 70 },
+      { foodName: 'Huevo entero', cantidad: 0.5 },
+      { foodName: 'Leche descremada', cantidad: 50 },
+      { foodName: 'Aceite de oliva', cantidad: 5 },
+    ],
+  },
+  {
+    nombre: 'Carbonada chilena',
+    slotSugerido: 'almuerzo',
+    etiqueta: 'chilena',
+    items: [
+      { foodName: 'Posta rosada', cantidad: 160 },
+      { foodName: 'Papa cocida', cantidad: 140 },
+      { foodName: 'Zapallo camote', cantidad: 90 },
+      { foodName: 'Porotos verdes', cantidad: 60 },
+      { foodName: 'Choclo', cantidad: 50 },
+      { foodName: 'Cebolla', cantidad: 40 },
+      { foodName: 'Aceite de oliva', cantidad: 5 },
+    ],
+  },
+  {
+    nombre: 'Porotos con riendas',
+    slotSugerido: 'almuerzo',
+    etiqueta: 'chilena',
+    items: [
+      { foodName: 'Porotos cocidos', cantidad: 220 },
+      { foodName: 'Fideos cocidos', cantidad: 80 },
+      { foodName: 'Zapallo camote', cantidad: 100 },
+      { foodName: 'Cebolla', cantidad: 50 },
+      { foodName: 'Aceite de oliva', cantidad: 5 },
+    ],
+  },
+  {
+    nombre: 'Lentejas guisadas con arroz',
+    slotSugerido: 'almuerzo',
+    etiqueta: 'chilena',
+    items: [
+      { foodName: 'Lentejas cocidas', cantidad: 240 },
+      { foodName: 'Arroz cocido', cantidad: 100 },
+      { foodName: 'Cebolla', cantidad: 50 },
+      { foodName: 'Aceite de oliva', cantidad: 5 },
+    ],
+  },
+  {
+    nombre: 'Reineta a la plancha + ensalada chilena',
+    slotSugerido: 'almuerzo',
+    etiqueta: 'chilena',
+    items: [
+      { foodName: 'Reineta / Merluza', cantidad: 200 },
+      { foodName: 'Papa cocida', cantidad: 200 },
+      { foodName: 'Tomate', cantidad: 150 },
+      { foodName: 'Cebolla', cantidad: 50 },
+      { foodName: 'Aceite de oliva', cantidad: 8 },
+    ],
+  },
+  {
+    nombre: 'Tomaticán con carne y choclo',
+    slotSugerido: 'almuerzo',
+    etiqueta: 'chilena',
+    items: [
+      { foodName: 'Posta rosada', cantidad: 160 },
+      { foodName: 'Tomate', cantidad: 200 },
+      { foodName: 'Choclo', cantidad: 120 },
+      { foodName: 'Cebolla', cantidad: 70 },
+      { foodName: 'Papa cocida', cantidad: 120 },
+      { foodName: 'Aceite de oliva', cantidad: 5 },
+    ],
+  },
+  {
+    nombre: 'Bistec a lo pobre versión fit',
+    slotSugerido: 'almuerzo',
+    etiqueta: 'chilena',
+    items: [
+      { foodName: 'Posta rosada', cantidad: 180 },
+      { foodName: 'Papa cocida', cantidad: 200 },
+      { foodName: 'Cebolla', cantidad: 100 },
+      { foodName: 'Huevo entero', cantidad: 1 },
+      { foodName: 'Aceite de oliva', cantidad: 5 },
+    ],
+  },
+  {
+    nombre: 'Chacarero de posta rosada',
+    slotSugerido: 'almuerzo',
+    etiqueta: 'chilena',
+    items: [
+      { foodName: 'Posta rosada', cantidad: 160 },
+      { foodName: 'Pan marraqueta', cantidad: 90 },
+      { foodName: 'Porotos verdes', cantidad: 80 },
+      { foodName: 'Tomate', cantidad: 80 },
+      { foodName: 'Palta', cantidad: 40 },
+    ],
+  },
+  {
+    nombre: 'Zapallo italiano relleno',
+    slotSugerido: 'once_cena',
+    etiqueta: 'chilena',
+    items: [
+      { foodName: 'Zapallo italiano', cantidad: 250 },
+      { foodName: 'Carne molida magra (5%)', cantidad: 160 },
+      { foodName: 'Cebolla', cantidad: 60 },
+      { foodName: 'Quesillo', cantidad: 50 },
+      { foodName: 'Aceite de oliva', cantidad: 5 },
+    ],
+  },
+  {
+    nombre: 'Ensalada de jurel a la chilena',
+    slotSugerido: 'once_cena',
+    etiqueta: 'chilena',
+    items: [
+      { foodName: 'Jurel en conserva', cantidad: 140 },
+      { foodName: 'Papa cocida', cantidad: 150 },
+      { foodName: 'Tomate', cantidad: 120 },
+      { foodName: 'Cebolla', cantidad: 50 },
+      { foodName: 'Aceite de oliva', cantidad: 5 },
+    ],
+  },
+  {
+    nombre: 'Once chilena: marraqueta pavo + quesillo + palta',
+    slotSugerido: 'once_cena',
+    etiqueta: 'chilena',
+    items: [
+      { foodName: 'Pan marraqueta', cantidad: 80 },
+      { foodName: 'Jamón de pavo', cantidad: 80 },
+      { foodName: 'Quesillo', cantidad: 70 },
+      { foodName: 'Palta', cantidad: 45 },
+      { foodName: 'Tomate', cantidad: 60 },
+    ],
+  },
+  {
+    nombre: 'Once chilena: marraqueta palta + huevo',
+    slotSugerido: 'once_cena',
+    etiqueta: 'chilena',
+    items: [
+      { foodName: 'Pan marraqueta', cantidad: 80 },
+      { foodName: 'Palta', cantidad: 60 },
+      { foodName: 'Huevo entero', cantidad: 2 },
+      { foodName: 'Tomate', cantidad: 80 },
+    ],
+  },
+  {
+    nombre: 'Desayuno chileno: marraqueta huevo + palta',
+    slotSugerido: 'desayuno',
+    etiqueta: 'chilena',
+    items: [
+      { foodName: 'Pan marraqueta', cantidad: 70 },
+      { foodName: 'Huevo entero', cantidad: 2 },
+      { foodName: 'Clara de huevo', cantidad: 80 },
+      { foodName: 'Palta', cantidad: 50 },
+    ],
+  },
+];
+
+function buildDayTemplateFromCombos(
+  nombre: string,
+  descripcion: string,
+  combos: Omit<MealCombo, 'id'>[],
+): Omit<DayMenuTemplate, 'id'> {
+  const entries: DayTemplateEntry[] = combos.map((c) => ({
+    slot: c.slotSugerido,
+    nombre: c.nombre,
+    cantidadTexto: `Menú (${c.ingredientes.length} ing.)`,
+    kcal: c.totalKcal,
+    proteinaG: c.totalProteinaG,
+    carbohidratosG: c.totalCarbsG,
+    grasasG: c.totalGrasasG,
+    ingredientes: c.ingredientes,
+  }));
+
+  const totalKcal = Math.round(entries.reduce((s, e) => s + e.kcal, 0));
+  const totalProteinaG = Number(
+    entries.reduce((s, e) => s + e.proteinaG, 0).toFixed(1),
+  );
+  const totalCarbsG = Number(
+    entries.reduce((s, e) => s + e.carbohidratosG, 0).toFixed(1),
+  );
+  const totalGrasasG = Number(
+    entries.reduce((s, e) => s + e.grasasG, 0).toFixed(1),
+  );
+
+  return {
+    nombre,
+    descripcion,
+    entries,
+    totalKcal,
+    totalProteinaG,
+    totalCarbsG,
+    totalGrasasG,
+    createdAt: Date.now(),
   };
 }
 
@@ -379,15 +785,21 @@ export function ensureSeedData(): Promise<void> {
         [db.profile, db.foods, db.combos, db.dayTemplates],
         async () => {
           const existingProfile = await db.profile.get('default');
+          let activeProfile: UserProfile;
           if (!existingProfile) {
-            await db.profile.put({ ...DEFAULT_PROFILE, updatedAt: Date.now() });
-          } else if (existingProfile.mostrarHabitosHoy === undefined) {
-            await db.profile.put({
-              ...existingProfile,
-              metaAguaMl: existingProfile.metaAguaMl ?? DEFAULT_PROFILE.metaAguaMl,
-              metaPasos: existingProfile.metaPasos ?? DEFAULT_PROFILE.metaPasos,
-              mostrarHabitosHoy: true,
-            });
+            activeProfile = { ...DEFAULT_PROFILE, updatedAt: Date.now() };
+            await db.profile.put(activeProfile);
+          } else {
+            activeProfile = existingProfile;
+            if (existingProfile.mostrarHabitosHoy === undefined) {
+              activeProfile = {
+                ...existingProfile,
+                metaAguaMl: existingProfile.metaAguaMl ?? DEFAULT_PROFILE.metaAguaMl,
+                metaPasos: existingProfile.metaPasos ?? DEFAULT_PROFILE.metaPasos,
+                mostrarHabitosHoy: true,
+              };
+              await db.profile.put(activeProfile);
+            }
           }
 
           let foodsCount = await db.foods.count();
@@ -477,41 +889,108 @@ export function ensureSeedData(): Promise<void> {
           if (templatesCount === 0) {
             const allCombos = await db.combos.toArray();
             if (allCombos.length >= 4) {
-              const entries: DayTemplateEntry[] = allCombos.slice(0, 4).map((c) => ({
-                slot: c.slotSugerido,
-                nombre: c.nombre,
-                cantidadTexto: `Menú (${c.ingredientes.length} ing.)`,
-                kcal: c.totalKcal,
-                proteinaG: c.totalProteinaG,
-                carbohidratosG: c.totalCarbsG,
-                grasasG: c.totalGrasasG,
-                ingredientes: c.ingredientes,
-              }));
-
-              const totalKcal = Math.round(entries.reduce((s, e) => s + e.kcal, 0));
-              const totalProteinaG = Number(
-                entries.reduce((s, e) => s + e.proteinaG, 0).toFixed(1),
+              const starterTemplate = buildDayTemplateFromCombos(
+                'Día base definición',
+                'Los 4 menús base equilibrados en proteína',
+                allCombos.slice(0, 4),
               );
-              const totalCarbsG = Number(
-                entries.reduce((s, e) => s + e.carbohidratosG, 0).toFixed(1),
-              );
-              const totalGrasasG = Number(
-                entries.reduce((s, e) => s + e.grasasG, 0).toFixed(1),
-              );
-
-              const starterTemplate: Omit<DayMenuTemplate, 'id'> = {
-                nombre: 'Día base definición',
-                descripcion: 'Los 4 menús base equilibrados en proteína',
-                entries,
-                totalKcal,
-                totalProteinaG,
-                totalCarbsG,
-                totalGrasasG,
-                createdAt: Date.now(),
-              };
-
               await db.dayTemplates.add(starterTemplate);
             }
+          }
+
+          // --- Pack idempotente de recetas de comida chilena (para instalaciones nuevas y existentes) ---
+          const appliedPacks = activeProfile.seedPacksApplied ?? [];
+          if (!appliedPacks.includes(CHILEAN_SEED_PACK_ID)) {
+            const currentFoods = await db.foods.toArray();
+            const existingFoodNames = new Set(
+              currentFoods.map((f) => normalizeSearchText(f.nombre)),
+            );
+
+            const missingFoods = SEED_FOODS.filter(
+              (sf) => !existingFoodNames.has(normalizeSearchText(sf.nombre)),
+            );
+            if (missingFoods.length > 0) {
+              await db.foods.bulkAdd(missingFoods);
+            }
+
+            const refreshedFoods = await db.foods.toArray();
+            const foodByNormName = new Map(
+              refreshedFoods.map((f) => [normalizeSearchText(f.nombre), f]),
+            );
+            const getFoodByName = (name: string) =>
+              foodByNormName.get(normalizeSearchText(name));
+
+            const existingCombos = await db.combos.toArray();
+            const existingComboNames = new Set(
+              existingCombos.map((c) => normalizeSearchText(c.nombre)),
+            );
+
+            const chileanCombosToAdd: Omit<MealCombo, 'id'>[] = [];
+            for (const recipe of CHILEAN_RECIPES) {
+              if (existingComboNames.has(normalizeSearchText(recipe.nombre))) {
+                continue;
+              }
+              const resolvedItems: { food: FoodItem; cantidad: number }[] = [];
+              let allFound = true;
+              for (const item of recipe.items) {
+                const food = getFoodByName(item.foodName);
+                if (!food) {
+                  allFound = false;
+                  break;
+                }
+                resolvedItems.push({ food, cantidad: item.cantidad });
+              }
+              if (allFound && resolvedItems.length > 0) {
+                chileanCombosToAdd.push(
+                  buildCombo(
+                    recipe.nombre,
+                    recipe.slotSugerido,
+                    resolvedItems,
+                    recipe.etiqueta,
+                  ),
+                );
+              }
+            }
+
+            if (chileanCombosToAdd.length > 0) {
+              await db.combos.bulkAdd(chileanCombosToAdd);
+            }
+
+            // Plantilla de día completo chileno
+            const existingTemplates = await db.dayTemplates.toArray();
+            const existingTemplateNames = new Set(
+              existingTemplates.map((t) => normalizeSearchText(t.nombre)),
+            );
+            const chileanDayName = 'Día chileno equilibrado';
+            if (!existingTemplateNames.has(normalizeSearchText(chileanDayName))) {
+              const allCombosNow = await db.combos.toArray();
+              const comboByNormName = new Map(
+                allCombosNow.map((c) => [normalizeSearchText(c.nombre), c]),
+              );
+              const dayComboNames = [
+                'Desayuno chileno: marraqueta huevo + palta',
+                'Cazuela de vacuno',
+                'Batido whey + plátano',
+                'Once chilena: marraqueta pavo + quesillo + palta',
+              ];
+              const picked = dayComboNames
+                .map((n) => comboByNormName.get(normalizeSearchText(n)))
+                .filter((c): c is MealCombo => Boolean(c));
+
+              if (picked.length >= 3) {
+                await db.dayTemplates.add(
+                  buildDayTemplateFromCombos(
+                    chileanDayName,
+                    'Desayuno chileno, cazuela de vacuno, snack proteico y once con marraqueta',
+                    picked,
+                  ),
+                );
+              }
+            }
+
+            await db.profile.update('default', {
+              seedPacksApplied: [...appliedPacks, CHILEAN_SEED_PACK_ID],
+            });
           }
         },
       );

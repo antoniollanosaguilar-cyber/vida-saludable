@@ -32,6 +32,7 @@ export interface UserProfile {
   metaAguaMl?: number;
   metaPasos?: number;
   mostrarHabitosHoy?: boolean;
+  seedPacksApplied?: string[];
   updatedAt: number;
 }
 
@@ -80,6 +81,7 @@ export interface MealCombo {
   id?: number;
   nombre: string;
   slotSugerido: MealSlot;
+  etiqueta?: string;
   ingredientes: ComboIngredient[];
   totalKcal: number;
   totalProteinaG: number;

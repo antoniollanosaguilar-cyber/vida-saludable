@@ -274,6 +274,7 @@ export function CreateFoodOrComboSheet({
         {
           nombre: trimmed,
           slotSugerido: comboSlot,
+          ...(editingCombo?.etiqueta ? { etiqueta: editingCombo.etiqueta } : {}),
           ingredientes: ingredients,
           totalKcal: Math.round(comboTotals.kcal),
           totalProteinaG: comboTotals.prot,

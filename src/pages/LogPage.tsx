@@ -127,7 +127,8 @@ export function LogPage({
 }: LogPageProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<FilterChipId>('favoritos');
-  const [comboSlotFilter, setComboSlotFilter] = useState<'todos' | MealSlot>('todos');
+  const [comboSlotFilter, setComboSlotFilter] = useState<'todos' | 'chilena' | MealSlot>('todos');
+  const [showAllCombos, setShowAllCombos] = useState(false);
 
   const [selectedFoodState, setSelectedFoodState] = useState<{
     food: FoodItem;
@@ -200,23 +201,32 @@ export function LogPage({
     const base = combos.filter((combo) => {
       if (normalizedQuery) {
         const hay = normalizeSearchText(
-          `${combo.nombre} ${combo.ingredientes.map((i) => i.nombre).join(' ')}`,
+          `${combo.nombre} ${combo.etiqueta ?? ''} ${combo.ingredientes.map((i) => i.nombre).join(' ')}`,
         );
         return hay.includes(normalizedQuery);
       }
       if (comboSlotFilter === 'todos') return true;
+      if (comboSlotFilter === 'chilena') return combo.etiqueta === 'chilena';
       return combo.slotSugerido === comboSlotFilter;
     });
 
-    if (comboSlotFilter === 'todos' && !normalizedQuery) {
+    if ((comboSlotFilter === 'todos' || comboSlotFilter === 'chilena') && !normalizedQuery) {
       return [...base].sort((a, b) => {
         const aPrio = a.slotSugerido === preferredSlot ? 0 : 1;
         const bPrio = b.slotSugerido === preferredSlot ? 0 : 1;
-        return aPrio - bPrio;
+        if (aPrio !== bPrio) return aPrio - bPrio;
+        return a.nombre.localeCompare(b.nombre, 'es');
       });
     }
-    return base;
+    return [...base].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
   }, [combos, normalizedQuery, comboSlotFilter, preferredSlot]);
+
+  const visibleCombos = useMemo(() => {
+    if (normalizedQuery || showAllCombos || filteredCombos.length <= 6) {
+      return filteredCombos;
+    }
+    return filteredCombos.slice(0, 6);
+  }, [filteredCombos, normalizedQuery, showAllCombos]);
 
   const filteredFoods = useMemo(() => {
     return foods.filter((food) => {
@@ -304,6 +314,7 @@ export function LogPage({
     await db.combos.add({
       nombre: `${combo.nombre} (copia)`,
       slotSugerido: combo.slotSugerido,
+      ...(combo.etiqueta ? { etiqueta: combo.etiqueta } : {}),
       ingredientes: combo.ingredientes.map((i) => ({ ...i })),
       totalKcal: combo.totalKcal,
       totalProteinaG: combo.totalProteinaG,
@@ -508,21 +519,30 @@ export function LogPage({
                 aria-label="Filtrar menús por horario"
                 className="flex items-center gap-gutter-xs overflow-x-auto no-scrollbar"
               >
-                {(['todos', ...MEAL_SLOTS_ORDER] as ('todos' | MealSlot)[]).map((slot) => {
+                {(['todos', 'chilena', ...MEAL_SLOTS_ORDER] as ('todos' | 'chilena' | MealSlot)[]).map((slot) => {
                   const active = comboSlotFilter === slot;
+                  const label =
+                    slot === 'todos'
+                      ? 'Todos'
+                      : slot === 'chilena'
+                        ? 'Chilena'
+                        : MEAL_SLOT_LABELS[slot];
                   return (
                     <button
                       key={slot}
                       type="button"
                       aria-pressed={active}
-                      onClick={() => setComboSlotFilter(slot)}
+                      onClick={() => {
+                        setComboSlotFilter(slot);
+                        setShowAllCombos(false);
+                      }}
                       className={`shrink-0 min-h-[32px] px-gutter-sm rounded-full font-label text-label-sm transition-colors ${
                         active
                           ? 'bg-secondary-container border border-secondary text-on-secondary-container'
                           : 'bg-surface-container border border-outline text-on-surface-variant hover:text-on-surface'
                       }`}
                     >
-                      {slot === 'todos' ? 'Todos' : MEAL_SLOT_LABELS[slot]}
+                      {label}
                     </button>
                   );
                 })}
@@ -531,11 +551,12 @@ export function LogPage({
 
             {filteredCombos.length === 0 ? (
               <p className="font-body text-body-sm text-on-surface-variant">
-                No hay menús en este horario.
+                No hay menús en esta categoría.
               </p>
             ) : (
+              <>
               <div className="grid grid-cols-2 gap-gutter-md items-stretch">
-                {filteredCombos.map((combo) => {
+                {visibleCombos.map((combo) => {
                   const justAdded = recentAddedKey === `combo-${combo.id}`;
                   const dist = getMacroDistribution(
                     combo.totalProteinaG,
@@ -561,6 +582,11 @@ export function LogPage({
                             <span className="font-label text-label-sm text-on-surface-variant">
                               {MEAL_SLOT_LABELS[preselectedSlot ?? combo.slotSugerido]}
                             </span>
+                            {combo.etiqueta === 'chilena' && (
+                              <span className="px-1.5 py-0.5 rounded-full bg-secondary-container text-on-secondary-container font-label text-[9px]">
+                                Chilena
+                              </span>
+                            )}
                             {dist.isHighProtein && (
                               <span className="px-1.5 py-0.5 rounded-full bg-primary-container text-on-primary-container font-label text-[9px]">
                                 Alto P
@@ -625,6 +651,18 @@ export function LogPage({
                   );
                 })}
               </div>
+              {!normalizedQuery && filteredCombos.length > 6 && (
+                <button
+                  type="button"
+                  onClick={() => setShowAllCombos((prev) => !prev)}
+                  className="w-full min-h-[40px] rounded-md bg-surface-container border border-outline font-label text-label-md text-on-surface-variant hover:border-primary hover:text-primary transition-colors"
+                >
+                  {showAllCombos
+                    ? 'Ver menos menús'
+                    : `Ver los ${filteredCombos.length} menús`}
+                </button>
+              )}
+              </>
             )}
           </section>
         )}
